@@ -15,12 +15,14 @@ const useLocalStorage = (key: string, defaultValue: any) => {
 
   const setStoredValue = useCallback((newValue: any) => {
     try {
-      setValue(newValue);
-      window.localStorage.setItem(key, JSON.stringify(newValue));
+      // Если newValue это функция (как в setState), вызываем её
+      const valueToStore = typeof newValue === 'function' ? newValue(value) : newValue;
+      setValue(valueToStore);
+      window.localStorage.setItem(key, JSON.stringify(valueToStore));
     } catch (error) {
       console.error(`Error saving ${key} to localStorage:`, error);
     }
-  }, [key]);
+  }, [key, value]);
 
   return [value, setStoredValue];
 };
