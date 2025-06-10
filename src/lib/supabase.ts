@@ -5,7 +5,7 @@ const supabaseAnonKey = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYm
 
 export const supabase = createClient(supabaseUrl, supabaseAnonKey)
 
-export const getUserId = () => {
+export const getUserId = (): string => {
   let userId = localStorage.getItem('userId')
   if (!userId) {
     userId = 'user_' + Math.random().toString(36).substr(2, 12)
@@ -15,7 +15,7 @@ export const getUserId = () => {
   return userId
 }
 
-export const saveUserData = async (userData) => {
+export const saveUserData = async (userData: any): Promise<boolean> => {
   const userId = getUserId()
   console.log('💾 Saving to Supabase...', userId)
   
@@ -34,7 +34,7 @@ export const saveUserData = async (userData) => {
   return true
 }
 
-export const loadUserData = async () => {
+export const loadUserData = async (): Promise<any> => {
   const userId = getUserId()
   console.log('📥 Loading from Supabase...', userId)
   
