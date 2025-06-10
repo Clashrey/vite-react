@@ -218,23 +218,33 @@ const useSupabaseStorage = (key: string, defaultValue: any, isLoggedIn: boolean)
   }, [key, isLoggedIn]); // Добавляем isLoggedIn как зависимость
 
   const setStoredValue = useCallback(async (newValue: any) => {
+    console.log(`💾 setStoredValue вызван для ${key}, isLoggedIn:`, isLoggedIn);
+    console.log(`📝 Новое значение:`, newValue);
+    
     // НЕ сохраняем если пользователь не авторизован
     if (!isLoggedIn) {
+      console.log(`⚠️ Пользователь не авторизован, только локальное изменение`);
       setValue(newValue);
       return;
     }
 
     setValue((currentValue: any) => {
       const valueToStore = typeof newValue === 'function' ? newValue(currentValue) : newValue;
+      console.log(`🔄 Обработанное значение для сохранения:`, valueToStore);
       
       // Сохраняем немедленно
       const saveData = async () => {
         try {
+          console.log(`🌐 Начинаем сохранение ${key} в Supabase...`);
           const userData = await loadUserData() || {};
+          console.log(`📥 Текущие данные пользователя:`, userData);
+          
           userData[key] = valueToStore;
+          console.log(`📤 Данные для сохранения:`, userData);
+          
           const success = await saveUserData(userData);
           if (success) {
-            console.log(`✅ ${key} сохранен в облаке:`, valueToStore);
+            console.log(`✅ ${key} успешно сохранен в облаке:`, valueToStore);
           } else {
             console.error(`❌ Не удалось сохранить ${key}`);
           }
@@ -525,6 +535,8 @@ export default function App() {
   const addTask = (category: string) => {
     if (!newTaskText.trim()) return;
     
+    console.log(`➕ Добавляем задачу в ${category}:`, newTaskText.trim());
+    
     const newTask: any = {
       id: Date.now(),
       text: newTaskText.trim(),
@@ -534,24 +546,52 @@ export default function App() {
 
     if (category === 'today') {
       const targetDate = newTaskDate;
-      setTasksByDate((prev: any) => ({
-        ...prev,
-        [targetDate]: [...(prev[targetDate] || []), newTask]
-      }));
+      console.log(`📅 Добавляем задачу на дату: ${targetDate}`);
+      console.log(`📋 Текущие задачи для ${targetDate}:`, tasksByDate[targetDate]);
+      
+      setTasksByDate((prev: any) => {
+        const newData = {
+          ...prev,
+          [targetDate]: [...(prev[targetDate] || []), newTask]
+        };
+        console.log(`💾 Новые данные tasksByDate:`, newData);
+        return newData;
+      });
     } else if (category === 'regular') {
       newTask.frequency = newTaskFrequency;
       newTask.days = newTaskDays;
-      setDailyTasks((prev: any) => [...prev, newTask]);
+      console.log(`🔄 Добавляем регулярную задачу:`, newTask);
+      
+      setDailyTasks((prev: any) => {
+        const newData = [...prev, newTask];
+        console.log(`💾 Новые dailyTasks:`, newData);
+        return newData;
+      });
     } else if (category === 'noDeadline') {
-      setNoDeadlineTasks((prev: any) => [...prev, newTask]);
+      console.log(`⏰ Добавляем задачу без срока:`, newTask);
+      
+      setNoDeadlineTasks((prev: any) => {
+        const newData = [...prev, newTask];
+        console.log(`💾 Новые noDeadlineTasks:`, newData);
+        return newData;
+      });
     } else if (category === 'ideas') {
-      setIdeas((prev: any) => [...prev, newTask]);
+      console.log(`💡 Добавляем идею:`, newTask);
+      
+      setIdeas((prev: any) => {
+        const newData = [...prev, newTask];
+        console.log(`💾 Новые ideas:`, newData);
+        return newData;
+      });
     }
 
+    // Сброс формы
     setNewTaskText('');
     setNewTaskDate(new Date().toISOString().split('T')[0]);
     setNewTaskFrequency('daily');
     setNewTaskDays([]);
+    
+    console.log(`✅ Задача добавлена, форма очищена`);
   };
 
   return (
