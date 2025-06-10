@@ -32,19 +32,30 @@ const AuthForm = ({ onLogin }: { onLogin: (userId: string) => void }) => {
     
     try {
       localStorage.setItem('userId', newUserId);
-      await saveUserData({
-        tasksByDate: {
-          [new Date().toISOString().split('T')[0]]: []
-        },
+      
+      // Создаем начальные данные для нового пользователя
+      const initialData = {
+        tasksByDate: {},
         noDeadlineTasks: [],
         ideas: [],
         dailyTasks: [],
         completedRegularTasks: {},
         regularTasksOrder: {}
-      });
-      onLogin(newUserId);
+      };
+      
+      console.log('🆕 Создаем нового пользователя:', newUserId);
+      console.log('📝 Начальные данные:', initialData);
+      
+      const success = await saveUserData(initialData);
+      if (success) {
+        console.log('✅ Пользователь успешно создан');
+        onLogin(newUserId);
+      } else {
+        throw new Error('Не удалось сохранить данные пользователя');
+      }
     } catch (error) {
-      alert('Ошибка регистрации');
+      console.error('❌ Ошибка регистрации:', error);
+      alert('Ошибка регистрации. Попробуйте еще раз.');
       localStorage.removeItem('userId');
     }
     setIsLoading(false);
@@ -166,11 +177,17 @@ const useSupabaseStorage = (key: string, defaultValue: any) => {
     const loadData = async () => {
       try {
         const userData = await loadUserData();
-        if (userData && userData[key]) {
+        console.log('🔍 Загруженные данные:', userData);
+        if (userData && userData[key] !== undefined) {
           setValue(userData[key]);
+          console.log(`✅ Загружен ${key}:`, userData[key]);
+        } else {
+          console.log(`ℹ️ Нет данных для ${key}, используем значение по умолчанию`);
+          setValue(defaultValue);
         }
       } catch (error) {
-        console.error(`Ошибка загрузки ${key}:`, error);
+        console.error(`❌ Ошибка загрузки ${key}:`, error);
+        setValue(defaultValue);
       } finally {
         setIsLoaded(true);
       }
@@ -183,18 +200,23 @@ const useSupabaseStorage = (key: string, defaultValue: any) => {
     setValue((currentValue: any) => {
       const valueToStore = typeof newValue === 'function' ? newValue(currentValue) : newValue;
       
-      // Асинхронное сохранение
-      setTimeout(async () => {
+      // Сохраняем немедленно
+      const saveData = async () => {
         try {
           const userData = await loadUserData() || {};
           userData[key] = valueToStore;
-          await saveUserData(userData);
-          console.log(`✅ ${key} сохранен`);
+          const success = await saveUserData(userData);
+          if (success) {
+            console.log(`✅ ${key} сохранен в облаке:`, valueToStore);
+          } else {
+            console.error(`❌ Не удалось сохранить ${key}`);
+          }
         } catch (error) {
-          console.error(`Ошибка сохранения ${key}:`, error);
+          console.error(`❌ Ошибка сохранения ${key}:`, error);
         }
-      }, 100);
+      };
       
+      saveData();
       return valueToStore;
     });
   }, [key]);
@@ -354,6 +376,8 @@ export default function App() {
   const [ideas, setIdeas] = useSupabaseStorage('ideas', []);
   const [dailyTasks, setDailyTasks] = useSupabaseStorage('dailyTasks', []);
   const [completedRegularTasks, setCompletedRegularTasks] = useSupabaseStorage('completedRegularTasks', {});
+
+  console.log('🔄 Текущие данные:', { tasksByDate, noDeadlineTasks, ideas, dailyTasks, completedRegularTasks });
 
   const [newTaskText, setNewTaskText] = useState('');
   const [newTaskDate, setNewTaskDate] = useState(new Date().toISOString().split('T')[0]);
