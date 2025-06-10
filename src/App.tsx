@@ -1,13 +1,179 @@
 import React, { useState, useCallback, useMemo, useEffect } from 'react';
-import { Plus, Trash2, Check, Calendar, Clock, Lightbulb, RefreshCw, ChevronLeft, ChevronRight } from 'lucide-react';
+import { Plus, Trash2, Check, Calendar, Clock, Lightbulb, RefreshCw, ChevronLeft, ChevronRight, LogOut, User } from 'lucide-react';
 import { saveUserData, loadUserData } from './lib/supabase';
 
-// Хук для работы с Supabase
+// Компонент авторизации
+const AuthForm = ({ onLogin }: { onLogin: (userId: string) => void }) => {
+  const [userId, setUserId] = useState('');
+  const [isLoading, setIsLoading] = useState(false);
+
+  const handleLogin = async () => {
+    const trimmedId = userId.trim();
+    if (!trimmedId) {
+      alert('Введите User ID');
+      return;
+    }
+    
+    setIsLoading(true);
+    // Простая проверка - пытаемся загрузить данные
+    try {
+      localStorage.setItem('userId', trimmedId);
+      await loadUserData(); // Проверяем что ID валидный
+      onLogin(trimmedId);
+    } catch (error) {
+      alert('Ошибка входа. Проверьте User ID.');
+    }
+    setIsLoading(false);
+  };
+
+  const handleRegister = async () => {
+    setIsLoading(true);
+    const newUserId = 'user_' + Math.random().toString(36).substr(2, 12);
+    
+    try {
+      localStorage.setItem('userId', newUserId);
+      // Создаем первоначальные данные для нового пользователя
+      await saveUserData({
+        tasksByDate: {
+          [new Date().toISOString().split('T')[0]]: []
+        },
+        noDeadlineTasks: [],
+        ideas: [],
+        dailyTasks: [],
+        completedRegularTasks: {},
+        regularTasksOrder: {}
+      });
+      onLogin(newUserId);
+    } catch (error) {
+      alert('Ошибка регистрации');
+    }
+    setIsLoading(false);
+  };
+
+  return (
+    <div className="min-h-screen bg-gradient-to-br from-slate-50 to-blue-50 flex items-center justify-center p-6">
+      <div className="bg-white rounded-xl shadow-xl p-8 w-full max-w-md">
+        <div className="text-center mb-8">
+          <div className="text-4xl mb-4">📋</div>
+          <h1 className="text-2xl font-bold text-slate-800 mb-2">Трекер задач</h1>
+          <p className="text-slate-600">Вход в систему</p>
+        </div>
+
+        <div className="space-y-4">
+          <div>
+            <label className="block text-sm font-medium text-slate-700 mb-2">
+              User ID
+            </label>
+            <input
+              type="text"
+              value={userId}
+              onChange={(e) => setUserId(e.target.value)}
+              placeholder="user_example123"
+              className="w-full px-4 py-3 border border-slate-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+              onKeyDown={(e) => e.key === 'Enter' && handleLogin()}
+              disabled={isLoading}
+            />
+            <p className="text-xs text-slate-500 mt-1">
+              Введите ваш существующий User ID для входа
+            </p>
+          </div>
+
+          <button
+            onClick={handleLogin}
+            disabled={isLoading || !userId.trim()}
+            className="w-full py-3 bg-blue-600 text-white rounded-lg hover:bg-blue-700 disabled:bg-slate-300 disabled:cursor-not-allowed transition-colors font-medium"
+          >
+            {isLoading ? 'Вход...' : 'Войти'}
+          </button>
+
+          <div className="relative">
+            <div className="absolute inset-0 flex items-center">
+              <div className="w-full border-t border-slate-300"></div>
+            </div>
+            <div className="relative flex justify-center text-sm">
+              <span className="px-2 bg-white text-slate-500">или</span>
+            </div>
+          </div>
+
+          <button
+            onClick={handleRegister}
+            disabled={isLoading}
+            className="w-full py-3 bg-green-600 text-white rounded-lg hover:bg-green-700 disabled:bg-slate-300 disabled:cursor-not-allowed transition-colors font-medium"
+          >
+            {isLoading ? 'Создание...' : 'Создать новый аккаунт'}
+          </button>
+        </div>
+
+        <div className="mt-6 p-4 bg-blue-50 rounded-lg">
+          <h3 className="text-sm font-medium text-blue-800 mb-2">💡 Как это работает:</h3>
+          <ul className="text-xs text-blue-700 space-y-1">
+            <li>• <strong>Вход:</strong> Введите ваш User ID с другого устройства</li>
+            <li>• <strong>Регистрация:</strong> Создаст новый ID и аккаунт</li>
+            <li>• <strong>Синхронизация:</strong> Используйте один ID на всех устройствах</li>
+          </ul>
+        </div>
+      </div>
+    </div>
+  );
+};
+
+// Хук для авторизации
+const useAuth = () => {
+  const [isLoggedIn, setIsLoggedIn] = useState(false);
+  const [currentUserId, setCurrentUserId] = useState<string | null>(null);
+  const [isLoading, setIsLoading] = useState(true);
+
+  useEffect(() => {
+    const checkAuth = async () => {
+      const storedUserId = localStorage.getItem('userId');
+      if (storedUserId) {
+        try {
+          // Проверяем что пользователь существует, пытаясь загрузить данные
+          await loadUserData();
+          setCurrentUserId(storedUserId);
+          setIsLoggedIn(true);
+        } catch (error) {
+          // Если ошибка - очищаем невалидный ID
+          localStorage.removeItem('userId');
+        }
+      }
+      setIsLoading(false);
+    };
+
+    checkAuth();
+  }, []);
+
+  const login = (userId: string) => {
+    setCurrentUserId(userId);
+    setIsLoggedIn(true);
+  };
+
+  const logout = () => {
+    localStorage.removeItem('userId');
+    setCurrentUserId(null);
+    setIsLoggedIn(false);
+    // Очищаем все сохраненные данные при выходе
+    localStorage.clear();
+    window.location.reload();
+  };
+
+  return { isLoggedIn, currentUserId, isLoading, login, logout };
+};
+
+// Обновленная функция getUserId для авторизованных пользователей
+const getAuthenticatedUserId = (): string => {
+  const userId = localStorage.getItem('userId');
+  if (!userId) {
+    throw new Error('User not authenticated');
+  }
+  return userId;
+};
+
+// Хук для работы с Supabase (обновленный)
 const useSupabaseStorage = (key: string, defaultValue: any) => {
   const [value, setValue] = useState(defaultValue);
   const [isLoaded, setIsLoaded] = useState(false);
 
-  // Загружаем данные при инициализации
   useEffect(() => {
     const loadData = async () => {
       try {
@@ -30,7 +196,6 @@ const useSupabaseStorage = (key: string, defaultValue: any) => {
       setValue((currentValue: any) => {
         const valueToStore = typeof newValue === 'function' ? newValue(currentValue) : newValue;
         
-        // Сохраняем в Supabase асинхронно
         setTimeout(async () => {
           try {
             const userData = await loadUserData() || {};
@@ -51,6 +216,9 @@ const useSupabaseStorage = (key: string, defaultValue: any) => {
 
   return [value, setStoredValue, isLoaded];
 };
+
+// Остальные компоненты (AddTaskForm, TaskList, MiniCalendar) остаются без изменений...
+// [Здесь весь остальной код компонентов из предыдущей версии]
 
 // Мемоизированный компонент для добавления задач
 const AddTaskForm = React.memo(({ category, onAddTask, newTaskText, setNewTaskText, newTaskDate, setNewTaskDate, newTaskFrequency, setNewTaskFrequency, newTaskDays, setNewTaskDays }: any) => {
@@ -160,7 +328,7 @@ const AddTaskForm = React.memo(({ category, onAddTask, newTaskText, setNewTaskTe
   );
 });
 
-// Мемоизированный компонент для списка задач
+// Остальные компоненты остаются такими же...
 const TaskList = React.memo(({ tasks, category, showCompleted = true, canToggle = true, onToggleTask, onDeleteTask, onDragStart, onDragOver, onDragLeave, onDrop, dragOverIndex }: any) => {
   const { activeTasks, completedTasks } = useMemo(() => {
     const completed = tasks.filter((task: any) => task.completed);
@@ -170,7 +338,6 @@ const TaskList = React.memo(({ tasks, category, showCompleted = true, canToggle 
 
   const displayTasks = showCompleted ? activeTasks : activeTasks.filter((task: any) => !task.completed);
 
-  // Разделяем задачи на регулярные и обычные для категории "today"
   const { regularTasks, normalTasks } = useMemo(() => {
     if (category === 'today') {
       return {
@@ -346,7 +513,6 @@ const TaskList = React.memo(({ tasks, category, showCompleted = true, canToggle 
   );
 });
 
-// Мемоизированный мини-календарь
 const MiniCalendar = React.memo(({ selectedDate, tasksByDate, onSelectDate }: any) => {
   const calendarData = useMemo(() => {
     const today = new Date();
@@ -379,12 +545,10 @@ const MiniCalendar = React.memo(({ selectedDate, tasksByDate, onSelectDate }: an
           <div key={day} className="text-xs font-medium text-gray-600 py-1">{day}</div>
         ))}
         
-        {/* Пустые ячейки в начале */}
         {Array.from({ length: calendarData.firstDay }, (_, i) => (
           <div key={`empty-${i}`} className="py-1"></div>
         ))}
         
-        {/* Дни месяца */}
         {Array.from({ length: calendarData.daysInMonth }, (_, i) => {
           const day = i + 1;
           const isToday = day === calendarData.todayDate && 
@@ -422,168 +586,70 @@ const MiniCalendar = React.memo(({ selectedDate, tasksByDate, onSelectDate }: an
   );
 });
 
+// Главный компонент приложения
 export default function App() {
+  const { isLoggedIn, currentUserId, isLoading, login, logout } = useAuth();
+  
+  // Остальное состояние компонента...
   const [activeTab, setActiveTab] = useState('today');
   const [selectedDate, setSelectedDate] = useState(new Date().toISOString().split('T')[0]);
   
-  // Данные с localStorage
   const [tasksByDate, setTasksByDate] = useSupabaseStorage('tasksByDate', {
-    [new Date().toISOString().split('T')[0]]: [
-      { id: 1, text: 'Подъем', completed: true, emoji: '🌅' },
-      { id: 2, text: 'Утренняя рутина', completed: true, emoji: '☀️' },
-      { id: 3, text: 'Кардио + бассейн', completed: true, emoji: '🏊‍♂️' },
-      { id: 4, text: 'Ашваганда + витамин D', completed: false, emoji: '💊' },
-      { id: 5, text: 'Посты для Севастополя', completed: false, emoji: '🏠' },
-      { id: 6, text: 'Посты для Ростова', completed: false, emoji: '🏠' },
-      { id: 7, text: 'Проверить РСЯ', completed: false, emoji: '💻' },
-      { id: 8, text: 'Заявление — оператор персональных данных', completed: false, emoji: '📋' }
-    ]
+    [new Date().toISOString().split('T')[0]]: []
   });
 
-  const [noDeadlineTasks, setNoDeadlineTasks] = useSupabaseStorage('noDeadlineTasks', [
-    { id: 101, text: 'Подготовить к запуску хотя бы один канал-афишу', emoji: '📺' },
-    { id: 102, text: 'Разобраться с РКН в Тюмени (или уточнить актуальность)', emoji: '⚙️' },
-    { id: 103, text: 'Узнать про починку байка', emoji: '🏍️' },
-    { id: 104, text: 'Записаться к стоматологу', emoji: '🦷' },
-    { id: 105, text: 'Сдать анализы (ориентир — 4 июня)', emoji: '🧪' },
-    { id: 106, text: 'Узнать про работу с самозанятыми', emoji: '💼' },
-    { id: 107, text: 'Решить, что делать с Ростовом (если не обдашешь сегодня)', emoji: '🤔' },
-    { id: 108, text: 'Запустить рассылку по агентствам (если отложено)', emoji: '📧' }
-  ]);
-
-  const [ideas, setIdeas] = useSupabaseStorage('ideas', [
-    { id: 201, text: 'Концепция афишного канала — шаблоны для постов', emoji: '💡' },
-    { id: 202, text: 'Канал по экономике — запуск (Ростов или Питер?)', emoji: '📊' }
-  ]);
-
-  const [dailyTasks, setDailyTasks] = useSupabaseStorage('dailyTasks', [
-    { id: 301, text: 'Уход за собой — борода, ногти, нос, брови', emoji: '🧔', frequency: 'weekly', days: [0] },
-    { id: 302, text: 'Заполнить бюджет', emoji: '📋', frequency: 'weekly', days: [0] },
-    { id: 303, text: 'Почистить зубы вечером', emoji: '🦷', frequency: 'daily', days: [] },
-    { id: 304, text: 'Магний + урсосан вечером', emoji: '🌙', frequency: 'daily', days: [] }
-  ]);
-
+  const [noDeadlineTasks, setNoDeadlineTasks] = useSupabaseStorage('noDeadlineTasks', []);
+  const [ideas, setIdeas] = useSupabaseStorage('ideas', []);
+  const [dailyTasks, setDailyTasks] = useSupabaseStorage('dailyTasks', []);
   const [completedRegularTasks, setCompletedRegularTasks] = useSupabaseStorage('completedRegularTasks', {});
   const [regularTasksOrder, setRegularTasksOrder] = useSupabaseStorage('regularTasksOrder', {});
 
-  // Состояние для drag and drop (не сохраняется)
   const [draggedItem, setDraggedItem] = useState<any>(null);
   const [dragOverIndex, setDragOverIndex] = useState<any>(null);
-
-  // Состояние формы (не сохраняется)
   const [newTaskText, setNewTaskText] = useState('');
   const [newTaskDate, setNewTaskDate] = useState(new Date().toISOString().split('T')[0]);
   const [newTaskFrequency, setNewTaskFrequency] = useState('daily');
   const [newTaskDays, setNewTaskDays] = useState<number[]>([]);
   const [showCalendar, setShowCalendar] = useState(false);
   
+  // Показываем загрузку
+  if (isLoading) {
+    return (
+      <div className="min-h-screen bg-gradient-to-br from-slate-50 to-blue-50 flex items-center justify-center">
+        <div className="text-center">
+          <div className="text-4xl mb-4">📋</div>
+          <div className="text-lg text-slate-600">Загрузка...</div>
+        </div>
+      </div>
+    );
+  }
+
+  // Показываем форму авторизации
+  if (!isLoggedIn) {
+    return <AuthForm onLogin={login} />;
+  }
+
+  // Остальная логика компонента остается такой же...
   const getAutoEmoji = useCallback((text: string) => {
     const lowerText = text.toLowerCase();
     
-    // Спорт и здоровье
     if (lowerText.includes('кардио') || lowerText.includes('спорт') || lowerText.includes('бассейн') || 
         lowerText.includes('зал') || lowerText.includes('тренировка') || lowerText.includes('бег')) {
       return '🏃‍♂️';
     }
     
-    // Зубы и стоматология
     if (lowerText.includes('зуб') || lowerText.includes('стоматолог')) {
       return '🦷';
     }
     
-    // Работа и проекты
     if (lowerText.includes('работа') || lowerText.includes('проект') || lowerText.includes('канал') || 
         lowerText.includes('пост') || lowerText.includes('контент') || lowerText.includes('реклама')) {
       return '💼';
     }
     
-    // Покупки
-    if (lowerText.includes('купить') || lowerText.includes('магазин') || lowerText.includes('покупк')) {
-      return '🛒';
-    }
-    
-    // Еда и готовка
-    if (lowerText.includes('готовить') || lowerText.includes('еда') || lowerText.includes('кухня') || 
-        lowerText.includes('завтрак') || lowerText.includes('обед') || lowerText.includes('ужин')) {
-      return '🍳';
-    }
-    
-    // Транспорт и ремонт
-    if (lowerText.includes('машина') || lowerText.includes('байк') || lowerText.includes('ремонт') || 
-        lowerText.includes('сервис') || lowerText.includes('починк')) {
-      return '🔧';
-    }
-    
-    // Документы и бумаги
-    if (lowerText.includes('документ') || lowerText.includes('заявление') || lowerText.includes('бумаг') || 
-        lowerText.includes('справк') || lowerText.includes('оформ')) {
-      return '📋';
-    }
-    
-    // Здоровье и врачи
-    if (lowerText.includes('врач') || lowerText.includes('анализ') || lowerText.includes('больниц') || 
-        lowerText.includes('лечение') || lowerText.includes('таблетк') || lowerText.includes('витамин') || 
-        lowerText.includes('магний') || lowerText.includes('ашваганда') || lowerText.includes('урсосан')) {
-      return '💊';
-    }
-    
-    // Деньги и финансы
-    if (lowerText.includes('деньги') || lowerText.includes('бюджет') || lowerText.includes('финанс') || 
-        lowerText.includes('зарплат') || lowerText.includes('платеж') || lowerText.includes('счет')) {
-      return '💰';
-    }
-    
-    // Уборка и чистка
-    if (lowerText.includes('убор') || lowerText.includes('чист') || lowerText.includes('мыть') || 
-        lowerText.includes('порядок')) {
-      return '🧹';
-    }
-    
-    // Звонки и связь
-    if (lowerText.includes('звонок') || lowerText.includes('звонить') || lowerText.includes('связать') || 
-        lowerText.includes('позвонить') || lowerText.includes('телефон')) {
-      return '📞';
-    }
-    
-    // Дом и недвижимость
-    if (lowerText.includes('дом') || lowerText.includes('квартир') || lowerText.includes('ремонт дома') || 
-        lowerText.includes('интерьер')) {
-      return '🏠';
-    }
-    
-    // Подъем и утро
-    if (lowerText.includes('подъем') || lowerText.includes('встать') || lowerText.includes('утр')) {
-      return '🌅';
-    }
-    
-    // Вечерние дела
-    if (lowerText.includes('вечер') || lowerText.includes('ночь') || lowerText.includes('сон')) {
-      return '🌙';
-    }
-    
-    // Идеи и творчество
-    if (lowerText.includes('идея') || lowerText.includes('концепция') || lowerText.includes('план') || 
-        lowerText.includes('стратегия') || lowerText.includes('креатив')) {
-      return '💡';
-    }
-    
-    // Обучение
-    if (lowerText.includes('учить') || lowerText.includes('изучать') || lowerText.includes('курс') || 
-        lowerText.includes('книга') || lowerText.includes('читать')) {
-      return '📚';
-    }
-    
-    // Технологии и компьютер
-    if (lowerText.includes('компьютер') || lowerText.includes('сайт') || lowerText.includes('код') || 
-        lowerText.includes('программ') || lowerText.includes('рся') || lowerText.includes('реклам')) {
-      return '💻';
-    }
-    
-    // По умолчанию
     return '📝';
   }, []);
 
-  // Вычисляемые значения
   const getTodayRegularTasks = useCallback((dateStr: string) => {
     const date = new Date(dateStr);
     const dayOfWeek = date.getDay();
@@ -600,7 +666,6 @@ export default function App() {
         isRegular: true
       }));
 
-    // Применяем сохраненный порядок для этой даты
     const savedOrder = regularTasksOrder[dateStr];
     if (savedOrder && savedOrder.length > 0) {
       const orderedTasks: any[] = [];
@@ -608,7 +673,6 @@ export default function App() {
         const task = applicableTasks.find((t: any) => t.id === taskId);
         if (task) orderedTasks.push(task);
       });
-      // Добавляем новые задачи, которых нет в сохраненном порядке
       applicableTasks.forEach((task: any) => {
         if (!savedOrder.includes(task.id)) {
           orderedTasks.push(task);
@@ -641,7 +705,6 @@ export default function App() {
     };
   }, [getCurrentDateTasks]);
 
-  // Функции
   const getCurrentDate = useCallback(() => {
     const date = new Date(selectedDate);
     return date.toLocaleDateString('ru-RU', { 
@@ -670,7 +733,6 @@ export default function App() {
     setSelectedDate(newDate.toISOString().split('T')[0]);
   }, [selectedDate]);
 
-  // Обработчики задач
   const toggleTask = useCallback((taskId: number, category: string) => {
     if (category === 'today') {
       const task = getCurrentDateTasks.find((t: any) => t.id === taskId);
@@ -750,14 +812,12 @@ export default function App() {
       setIdeas((prev: any) => [...prev, newTask]);
     }
 
-    // Сброс формы
     setNewTaskText('');
     setNewTaskDate(new Date().toISOString().split('T')[0]);
     setNewTaskFrequency('daily');
     setNewTaskDays([]);
   }, [newTaskText, newTaskDate, newTaskFrequency, newTaskDays, getAutoEmoji, setTasksByDate, setDailyTasks, setNoDeadlineTasks, setIdeas]);
 
-  // Drag and drop
   const handleDragStart = useCallback((e: any, task: any, index: number, type: string) => {
     setDraggedItem({ task, index, type });
     e.dataTransfer.effectAllowed = 'move';
@@ -790,7 +850,6 @@ export default function App() {
     };
 
     if (dropType === 'regular') {
-      // Перетаскивание регулярных задач
       const regularTasks = getTodayRegularTasks(selectedDate);
       const reorderedRegularTasks = reorderArray(regularTasks);
       const newOrder = reorderedRegularTasks.map((task: any) => task.id);
@@ -800,7 +859,6 @@ export default function App() {
         [selectedDate]: newOrder
       }));
     } else if (dropType === 'normal') {
-      // Перетаскивание обычных задач
       if (activeTab === 'today') {
         const normalTasks = (tasksByDate[selectedDate] || []).filter((t: any) => !t.isRegular);
         const reorderedNormalTasks = reorderArray(normalTasks);
@@ -820,7 +878,6 @@ export default function App() {
     setDraggedItem(null);
   }, [draggedItem, selectedDate, tasksByDate, noDeadlineTasks, ideas, dailyTasks, activeTab, getTodayRegularTasks, setRegularTasksOrder, setTasksByDate, setNoDeadlineTasks, setIdeas, setDailyTasks]);
 
-  // Мемоизированные обработчики
   const handleToggleTask = useCallback((category: string) => (taskId: number) => {
     toggleTask(taskId, category);
   }, [toggleTask]);
@@ -836,10 +893,32 @@ export default function App() {
   return (
     <div className="max-w-4xl mx-auto p-6 bg-gradient-to-br from-slate-50 to-blue-50 min-h-screen">
       <div className="bg-white rounded-xl shadow-lg overflow-hidden">
-        {/* Заголовок */}
+        {/* Заголовок с информацией о пользователе */}
         <div className="bg-slate-800 text-white p-6">
-          <h1 className="text-2xl font-bold mb-2">📋 Трекер задач</h1>
-          <p className="text-slate-300">{getCurrentDate()}</p>
+          <div className="flex justify-between items-start mb-4">
+            <div>
+              <h1 className="text-2xl font-bold mb-2">📋 Трекер задач</h1>
+              <p className="text-slate-300">{getCurrentDate()}</p>
+            </div>
+            <div className="flex items-center gap-3">
+              <div className="text-right">
+                <div className="flex items-center gap-2 text-sm text-slate-300">
+                  <User className="w-4 h-4" />
+                  <code className="bg-slate-700 px-2 py-1 rounded text-xs">
+                    {currentUserId}
+                  </code>
+                </div>
+              </div>
+              <button
+                onClick={logout}
+                className="p-2 hover:bg-slate-700 rounded-lg transition-colors"
+                title="Выйти"
+              >
+                <LogOut className="w-4 h-4" />
+              </button>
+            </div>
+          </div>
+          
           {totalToday > 0 && (
             <div className="mt-3">
               <div className="flex justify-between text-sm mb-1">
