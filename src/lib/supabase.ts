@@ -26,29 +26,4 @@ export const saveUserData = async (userData: any) => {
       user_id: userId, 
       task_data: userData 
     }, { 
-      onConflict: 'user_id' 
-    })
-  
-  if (error) {
-    console.error('Ошибка сохранения:', error)
-    return false
-  }
-  return true
-}
-
-export const loadUserData = async () => {
-  const userId = getUserId()
-  
-  const { error } = await supabase
-    .from('user_tasks')
-    .select('task_data')
-    .eq('user_id', userId)
-    .single()
-  
-  if (error) {
-    console.log('Данные не найдены, используем пустые:', error.message)
-    return null
-  }
-  
-  return data?.task_data || null
-}
+      onConflict: 'user_id'
