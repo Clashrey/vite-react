@@ -1,5 +1,5 @@
-import React, { useState, useCallback, useMemo, useEffect } from 'react';
-import { Plus, Trash2, Check, Calendar, Clock, Lightbulb, RefreshCw, ChevronLeft, ChevronRight, LogOut, User } from 'lucide-react';
+import React, { useState, useCallback, useEffect } from 'react';
+import { Plus, Trash2, Check, Calendar, Clock, Lightbulb, RefreshCw, LogOut, User } from 'lucide-react';
 import { saveUserData, loadUserData } from './lib/supabase';
 
 // Компонент авторизации
@@ -288,7 +288,7 @@ const AddTaskForm = React.memo(({ category, onAddTask, newTaskText, setNewTaskTe
   );
 });
 
-const TaskList = React.memo(({ tasks, category, showCompleted = true, canToggle = true, onToggleTask, onDeleteTask }: any) => {
+const TaskList = React.memo(({ tasks, canToggle = true, onToggleTask, onDeleteTask }: any) => {
   return (
     <div className="space-y-2">
       {tasks.map((task: any) => (
@@ -345,7 +345,7 @@ export default function App() {
   const { isLoggedIn, currentUserId, isLoading, login, logout } = useAuth();
   
   const [activeTab, setActiveTab] = useState('today');
-  const [selectedDate, setSelectedDate] = useState(new Date().toISOString().split('T')[0]);
+  const [selectedDate] = useState(new Date().toISOString().split('T')[0]);
   
   // Хуки данных - используются только когда пользователь авторизован
   const [tasksByDate, setTasksByDate] = useSupabaseStorage('tasksByDate', {});
@@ -593,7 +593,6 @@ export default function App() {
               
               <TaskList 
                 tasks={currentDateTasks} 
-                category="today" 
                 onToggleTask={(id: number) => toggleTask(id, 'today')}
                 onDeleteTask={(id: number) => deleteTask(id, 'today')}
               />
@@ -624,7 +623,6 @@ export default function App() {
               
               <TaskList 
                 tasks={noDeadlineTasks} 
-                category="noDeadline" 
                 onToggleTask={(id: number) => toggleTask(id, 'noDeadline')}
                 onDeleteTask={(id: number) => deleteTask(id, 'noDeadline')}
               />
@@ -655,7 +653,6 @@ export default function App() {
               
               <TaskList 
                 tasks={ideas} 
-                category="ideas" 
                 canToggle={false}
                 onToggleTask={(id: number) => toggleTask(id, 'ideas')}
                 onDeleteTask={(id: number) => deleteTask(id, 'ideas')}
@@ -693,7 +690,6 @@ export default function App() {
               
               <TaskList 
                 tasks={dailyTasks} 
-                category="regular" 
                 canToggle={false}
                 onToggleTask={(id: number) => toggleTask(id, 'regular')}
                 onDeleteTask={(id: number) => deleteTask(id, 'regular')}
