@@ -20,7 +20,7 @@ export const getUserId = (): string => {
 export const saveUserData = async (userData: any) => {
   const userId = getUserId()
   
-  const { data, error } = await supabase
+  const { error } = await supabase
     .from('user_tasks')
     .upsert({ 
       user_id: userId, 
@@ -39,7 +39,7 @@ export const saveUserData = async (userData: any) => {
 export const loadUserData = async () => {
   const userId = getUserId()
   
-  const { data, error } = await supabase
+  const { error } = await supabase
     .from('user_tasks')
     .select('task_data')
     .eq('user_id', userId)
