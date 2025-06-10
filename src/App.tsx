@@ -1,5 +1,5 @@
 import React, { useState, useCallback, useEffect } from 'react';
-import { Plus, Trash2, Check, Calendar, Clock, Lightbulb, RefreshCw, LogOut, User } from 'lucide-react';
+import { Plus, Trash2, Check, Calendar, Clock, Lightbulb, RefreshCw, ChevronLeft, ChevronRight, LogOut, User } from 'lucide-react';
 import { saveUserData, loadUserData } from './lib/supabase';
 
 // Компонент авторизации
@@ -33,9 +33,7 @@ const AuthForm = ({ onLogin }: { onLogin: (userId: string) => void }) => {
     try {
       localStorage.setItem('userId', newUserId);
       await saveUserData({
-        tasksByDate: {
-          [new Date().toISOString().split('T')[0]]: []
-        },
+        tasksByDate: {},
         noDeadlineTasks: [],
         ideas: [],
         dailyTasks: [],
@@ -60,9 +58,26 @@ const AuthForm = ({ onLogin }: { onLogin: (userId: string) => void }) => {
         </div>
 
         <div className="space-y-4">
+          <button
+            onClick={handleRegister}
+            disabled={isLoading}
+            className="w-full py-4 bg-blue-600 text-white rounded-lg hover:bg-blue-700 disabled:bg-slate-300 disabled:cursor-not-allowed transition-colors font-medium text-lg"
+          >
+            {isLoading ? 'Создание аккаунта...' : '🚀 Создать новый аккаунт'}
+          </button>
+
+          <div className="relative">
+            <div className="absolute inset-0 flex items-center">
+              <div className="w-full border-t border-slate-300"></div>
+            </div>
+            <div className="relative flex justify-center text-sm">
+              <span className="px-2 bg-white text-slate-500">Уже есть аккаунт?</span>
+            </div>
+          </div>
+
           <div>
             <label className="block text-sm font-medium text-slate-700 mb-2">
-              User ID
+              User ID для входа
             </label>
             <input
               type="text"
@@ -73,51 +88,22 @@ const AuthForm = ({ onLogin }: { onLogin: (userId: string) => void }) => {
               onKeyDown={(e) => e.key === 'Enter' && handleLogin()}
               disabled={isLoading}
             />
-            <p className="text-xs text-slate-500 mt-1">
-              Введите ваш существующий User ID для входа
-            </p>
           </div>
 
           <button
             onClick={handleLogin}
             disabled={isLoading || !userId.trim()}
-            className="w-full py-3 bg-blue-600 text-white rounded-lg hover:bg-blue-700 disabled:bg-slate-300 disabled:cursor-not-allowed transition-colors font-medium"
+            className="w-full py-3 bg-slate-600 text-white rounded-lg hover:bg-slate-700 disabled:bg-slate-300 disabled:cursor-not-allowed transition-colors font-medium"
           >
-            {isLoading ? 'Вход...' : 'Войти'}
+            {isLoading ? 'Вход...' : 'Войти с существующим ID'}
           </button>
-
-          <div className="relative">
-            <div className="absolute inset-0 flex items-center">
-              <div className="w-full border-t border-slate-300"></div>
-            </div>
-            <div className="relative flex justify-center text-sm">
-              <span className="px-2 bg-white text-slate-500">или</span>
-            </div>
-          </div>
-
-          <button
-            onClick={handleRegister}
-            disabled={isLoading}
-            className="w-full py-3 bg-green-600 text-white rounded-lg hover:bg-green-700 disabled:bg-slate-300 disabled:cursor-not-allowed transition-colors font-medium"
-          >
-            {isLoading ? 'Создание...' : 'Создать новый аккаунт'}
-          </button>
-        </div>
-
-        <div className="mt-6 p-4 bg-blue-50 rounded-lg">
-          <h3 className="text-sm font-medium text-blue-800 mb-2">💡 Как это работает:</h3>
-          <ul className="text-xs text-blue-700 space-y-1">
-            <li>• <strong>Вход:</strong> Введите ваш User ID с другого устройства</li>
-            <li>• <strong>Регистрация:</strong> Создаст новый ID и аккаунт</li>
-            <li>• <strong>Синхронизация:</strong> Используйте один ID на всех устройствах</li>
-          </ul>
         </div>
       </div>
     </div>
   );
 };
 
-// Хук для авторизации - ИСПРАВЛЕН
+// Хук для авторизации
 const useAuth = () => {
   const [isLoggedIn, setIsLoggedIn] = useState(false);
   const [currentUserId, setCurrentUserId] = useState<string | null>(null);
@@ -139,7 +125,7 @@ const useAuth = () => {
     };
 
     checkAuth();
-  }, []); // ИСПРАВЛЕНО: убрал loadUserData из dependencies
+  }, []);
 
   const login = useCallback((userId: string) => {
     setCurrentUserId(userId);
@@ -156,7 +142,7 @@ const useAuth = () => {
   return { isLoggedIn, currentUserId, isLoading, login, logout };
 };
 
-// Хук для работы с Supabase - ИСПРАВЛЕН
+// Хук для работы с Supabase
 const useSupabaseStorage = (key: string, defaultValue: any) => {
   const [value, setValue] = useState(defaultValue);
   const [isLoaded, setIsLoaded] = useState(false);
@@ -168,9 +154,9 @@ const useSupabaseStorage = (key: string, defaultValue: any) => {
         if (userData && userData[key]) {
           setValue(userData[key]);
         }
+        setIsLoaded(true);
       } catch (error) {
         console.error(`Ошибка загрузки ${key}:`, error);
-      } finally {
         setIsLoaded(true);
       }
     };
@@ -179,185 +165,135 @@ const useSupabaseStorage = (key: string, defaultValue: any) => {
   }, [key]);
 
   const setStoredValue = useCallback(async (newValue: any) => {
-    setValue((currentValue: any) => {
-      const valueToStore = typeof newValue === 'function' ? newValue(currentValue) : newValue;
-      
-      // Асинхронное сохранение
-      setTimeout(async () => {
-        try {
-          const userData = await loadUserData() || {};
-          userData[key] = valueToStore;
-          await saveUserData(userData);
-          console.log(`✅ ${key} сохранен`);
-        } catch (error) {
-          console.error(`Ошибка сохранения ${key}:`, error);
-        }
-      }, 100);
-      
-      return valueToStore;
-    });
+    try {
+      setValue((currentValue: any) => {
+        const valueToStore = typeof newValue === 'function' ? newValue(currentValue) : newValue;
+        
+        setTimeout(async () => {
+          try {
+            const userData = await loadUserData() || {};
+            userData[key] = valueToStore;
+            await saveUserData(userData);
+            console.log(`✅ ${key} сохранен в облаке`);
+          } catch (error) {
+            console.error(`Ошибка сохранения ${key}:`, error);
+          }
+        }, 100);
+        
+        return valueToStore;
+      });
+    } catch (error) {
+      console.error(`Ошибка установки ${key}:`, error);
+    }
   }, [key]);
 
   return [value, setStoredValue, isLoaded];
 };
 
-// Компоненты форм и списков
-const AddTaskForm = React.memo(({ category, onAddTask, newTaskText, setNewTaskText, newTaskDate, setNewTaskDate, newTaskFrequency, setNewTaskFrequency, newTaskDays, setNewTaskDays }: any) => {
-  const handleKeyDown = useCallback((e: any) => {
-    if (e.key === 'Enter') {
-      e.preventDefault();
-      onAddTask();
-    }
-  }, [onAddTask]);
-
-  const toggleDay = useCallback((dayIndex: number) => {
-    setNewTaskDays((prev: number[]) => 
-      prev.includes(dayIndex) 
-        ? prev.filter(d => d !== dayIndex)
-        : [...prev, dayIndex].sort()
-    );
-  }, [setNewTaskDays]);
-
-  return (
-    <div className="bg-gray-50 p-4 rounded-lg">
-      <div className="flex gap-2 mb-2">
-        <input
-          type="text"
-          value={newTaskText}
-          onChange={(e) => setNewTaskText(e.target.value)}
-          placeholder="Новая задача..."
-          className="flex-1 px-3 py-2 border rounded focus:outline-none focus:ring-2 focus:ring-blue-500"
-          onKeyDown={handleKeyDown}
-          autoComplete="off"
-        />
-        {category === 'today' && (
-          <input
-            type="date"
-            value={newTaskDate}
-            onChange={(e) => setNewTaskDate(e.target.value)}
-            className="px-3 py-2 border rounded focus:outline-none focus:ring-2 focus:ring-blue-500"
-          />
-        )}
-        <button
-          onClick={onAddTask}
-          disabled={!newTaskText.trim()}
-          className="px-4 py-2 bg-blue-600 text-white rounded hover:bg-blue-700 disabled:bg-gray-300 transition-colors"
-        >
-          <Plus className="w-4 h-4" />
-        </button>
-      </div>
-      
-      {category === 'regular' && (
-        <div className="mt-3 space-y-3">
-          <div>
-            <label className="block text-sm font-medium mb-2">Частота:</label>
-            <select 
-              value={newTaskFrequency} 
-              onChange={(e) => setNewTaskFrequency(e.target.value)}
-              className="w-full px-3 py-2 border rounded focus:outline-none focus:ring-2 focus:ring-blue-500"
-            >
-              <option value="daily">Ежедневно</option>
-              <option value="weekly">По дням недели</option>
-            </select>
-          </div>
-          
-          {newTaskFrequency === 'weekly' && (
-            <div>
-              <label className="block text-sm font-medium mb-2">Дни недели:</label>
-              <div className="flex gap-1">
-                {['Вс', 'Пн', 'Вт', 'Ср', 'Чт', 'Пт', 'Сб'].map((day, index) => (
-                  <button
-                    key={index}
-                    type="button"
-                    onClick={() => toggleDay(index)}
-                    className={`px-2 py-1 text-xs rounded transition-colors ${
-                      newTaskDays.includes(index)
-                        ? 'bg-blue-600 text-white'
-                        : 'bg-gray-200 text-gray-700 hover:bg-gray-300'
-                    }`}
-                  >
-                    {day}
-                  </button>
-                ))}
-              </div>
-            </div>
-          )}
-        </div>
+// Простые компоненты без сложностей
+const TaskItem = ({ task, canToggle = true, onToggle, onDelete }: any) => (
+  <div className="flex items-center gap-3 p-3 rounded-lg border bg-white hover:shadow-sm transition-all">
+    {canToggle && (
+      <button
+        onClick={() => onToggle(task.id)}
+        className={`flex-shrink-0 w-6 h-6 rounded-full border-2 flex items-center justify-center transition-colors ${
+          task.completed
+            ? 'bg-green-500 border-green-500 text-white'
+            : 'border-gray-300 hover:border-blue-500'
+        }`}
+      >
+        {task.completed && <Check className="w-4 h-4" />}
+      </button>
+    )}
+    
+    <span className="text-lg">{task.emoji}</span>
+    
+    <div className="flex-1">
+      <span className={`${task.completed ? 'line-through text-gray-500' : 'text-gray-800'}`}>
+        {task.text}
+      </span>
+      {task.isRegular && (
+        <span className="ml-2 px-2 py-1 bg-blue-100 text-blue-700 text-xs rounded-full">
+          регулярная
+        </span>
       )}
     </div>
-  );
-});
+    
+    <button
+      onClick={() => onDelete(task.id)}
+      className="flex-shrink-0 p-1 text-gray-400 hover:text-red-500 transition-colors"
+    >
+      <Trash2 className="w-4 h-4" />
+    </button>
+  </div>
+);
 
-const TaskList = React.memo(({ tasks, canToggle = true, onToggleTask, onDeleteTask }: any) => {
-  return (
-    <div className="space-y-2">
-      {tasks.map((task: any) => (
-        <div
-          key={task.id}
-          className={`flex items-center gap-3 p-3 rounded-lg border transition-all ${
-            task.completed 
-              ? 'bg-green-50 border-green-200' 
-              : task.isRegular 
-                ? 'bg-blue-50 border-blue-200'
-                : 'bg-white border-gray-200 hover:shadow-sm'
-          }`}
-        >
-          {canToggle && (
-            <button
-              onClick={() => onToggleTask(task.id)}
-              className={`flex-shrink-0 w-6 h-6 rounded-full border-2 flex items-center justify-center transition-colors ${
-                task.completed
-                  ? 'bg-green-500 border-green-500 text-white'
-                  : 'border-gray-300 hover:border-blue-500'
-              }`}
-            >
-              {task.completed && <Check className="w-4 h-4" />}
-            </button>
-          )}
-          
-          <span className="text-lg">{task.emoji}</span>
-          
-          <div className="flex-1">
-            <span className={`${task.completed ? 'line-through text-gray-500' : 'text-gray-800'}`}>
-              {task.text}
-            </span>
-            {task.isRegular && (
-              <span className="ml-2 px-2 py-1 bg-blue-100 text-blue-700 text-xs rounded-full">
-                регулярная
-              </span>
-            )}
-          </div>
-          
-          <button
-            onClick={() => onDeleteTask(task.id)}
-            className="flex-shrink-0 p-1 text-gray-400 hover:text-red-500 transition-colors"
-          >
-            <Trash2 className="w-4 h-4" />
-          </button>
-        </div>
-      ))}
+const AddTaskForm = ({ onAdd, text, setText, date, setDate }: any) => (
+  <div className="bg-gray-50 p-4 rounded-lg">
+    <div className="flex gap-2">
+      <input
+        type="text"
+        value={text}
+        onChange={(e) => setText(e.target.value)}
+        placeholder="Новая задача..."
+        className="flex-1 px-3 py-2 border rounded focus:outline-none focus:ring-2 focus:ring-blue-500"
+        onKeyDown={(e) => e.key === 'Enter' && onAdd()}
+      />
+      <input
+        type="date"
+        value={date}
+        onChange={(e) => setDate(e.target.value)}
+        className="px-3 py-2 border rounded focus:outline-none focus:ring-2 focus:ring-blue-500"
+      />
+      <button
+        onClick={onAdd}
+        disabled={!text.trim()}
+        className="px-4 py-2 bg-blue-600 text-white rounded hover:bg-blue-700 disabled:bg-gray-300 transition-colors"
+      >
+        <Plus className="w-4 h-4" />
+      </button>
     </div>
-  );
-});
+  </div>
+);
 
 // Главный компонент
 export default function App() {
   const { isLoggedIn, currentUserId, isLoading, login, logout } = useAuth();
   
   const [activeTab, setActiveTab] = useState('today');
-  const [selectedDate] = useState(new Date().toISOString().split('T')[0]);
+  const [selectedDate, setSelectedDate] = useState(new Date().toISOString().split('T')[0]);
   
-  // Хуки данных - используются только когда пользователь авторизован
-  const [tasksByDate, setTasksByDate] = useSupabaseStorage('tasksByDate', {});
-  const [noDeadlineTasks, setNoDeadlineTasks] = useSupabaseStorage('noDeadlineTasks', []);
-  const [ideas, setIdeas] = useSupabaseStorage('ideas', []);
-  const [dailyTasks, setDailyTasks] = useSupabaseStorage('dailyTasks', []);
-  const [completedRegularTasks, setCompletedRegularTasks] = useSupabaseStorage('completedRegularTasks', {});
+  const [tasksByDate, setTasksByDate] = useSupabaseStorage('tasksByDate', {
+    [new Date().toISOString().split('T')[0]]: [
+      { id: 1, text: 'Подъем', completed: true, emoji: '🌅' },
+      { id: 2, text: 'Утренняя рутина', completed: true, emoji: '☀️' },
+      { id: 3, text: 'Кардио + бассейн', completed: true, emoji: '🏊‍♂️' },
+      { id: 4, text: 'Ашваганда + витамин D', completed: false, emoji: '💊' },
+      { id: 5, text: 'Посты для Севастополя', completed: false, emoji: '🏠' },
+      { id: 6, text: 'Посты для Ростова', completed: false, emoji: '🏠' },
+      { id: 7, text: 'Проверить РСЯ', completed: false, emoji: '💻' },
+      { id: 8, text: 'Заявление — оператор персональных данных', completed: false, emoji: '📋' }
+    ]
+  });
+
+  const [noDeadlineTasks, setNoDeadlineTasks] = useSupabaseStorage('noDeadlineTasks', [
+    { id: 101, text: 'Подготовить к запуску хотя бы один канал-афишу', emoji: '📺' },
+    { id: 102, text: 'Разобраться с РКН в Тюмени (или уточнить актуальность)', emoji: '⚙️' },
+    { id: 103, text: 'Узнать про починку байка', emoji: '🏍️' },
+    { id: 104, text: 'Записаться к стоматологу', emoji: '🦷' },
+    { id: 105, text: 'Сдать анализы (ориентир — 4 июня)', emoji: '🧪' },
+    { id: 106, text: 'Узнать про работу с самозанятыми', emoji: '💼' },
+    { id: 107, text: 'Решить, что делать с Ростовом (если не обдашешь сегодня)', emoji: '🤔' },
+    { id: 108, text: 'Запустить рассылку по агентствам (если отложено)', emoji: '📧' }
+  ]);
+
+  const [ideas, setIdeas] = useSupabaseStorage('ideas', [
+    { id: 201, text: 'Концепция афишного канала — шаблоны для постов', emoji: '💡' },
+    { id: 202, text: 'Канал по экономике — запуск (Ростов или Питер?)', emoji: '📊' }
+  ]);
 
   const [newTaskText, setNewTaskText] = useState('');
   const [newTaskDate, setNewTaskDate] = useState(new Date().toISOString().split('T')[0]);
-  const [newTaskFrequency, setNewTaskFrequency] = useState('daily');
-  const [newTaskDays, setNewTaskDays] = useState<number[]>([]);
 
   // Показываем загрузку
   if (isLoading) {
@@ -376,71 +312,65 @@ export default function App() {
     return <AuthForm onLogin={login} />;
   }
 
-  // Вычисляемые значения
-  const getCurrentDateTasks = () => {
-    const normalTasks = tasksByDate[selectedDate] || [];
-    const regularTasks = dailyTasks
-      .filter((task: any) => {
-        const date = new Date(selectedDate);
-        const dayOfWeek = date.getDay();
-        if (task.frequency === 'daily') return true;
-        if (task.frequency === 'weekly') return task.days.includes(dayOfWeek);
-        return false;
-      })
-      .map((task: any) => ({
-        ...task,
-        completed: completedRegularTasks[selectedDate]?.includes(task.id) || false,
-        isRegular: true
-      }));
-    
-    return [...regularTasks, ...normalTasks];
-  };
-
-  const currentDateTasks = getCurrentDateTasks();
-  
-  const tabs = [
-    { id: 'today', label: 'Сегодня', icon: Calendar, count: currentDateTasks.filter((t: any) => !t.completed).length },
-    { id: 'noDeadline', label: 'Без срока', icon: Clock, count: noDeadlineTasks.length },
-    { id: 'ideas', label: 'Идеи', icon: Lightbulb, count: ideas.length },
-    { id: 'regular', label: 'Регулярные', icon: RefreshCw, count: dailyTasks.length }
-  ];
-
-  const completedToday = currentDateTasks.filter((t: any) => t.completed).length;
-  const totalToday = currentDateTasks.length;
-
   // Функции
   const getAutoEmoji = (text: string) => {
     const lowerText = text.toLowerCase();
     if (lowerText.includes('кардио') || lowerText.includes('спорт')) return '🏃‍♂️';
     if (lowerText.includes('зуб')) return '🦷';
     if (lowerText.includes('работа') || lowerText.includes('проект')) return '💼';
+    if (lowerText.includes('купить')) return '🛒';
+    if (lowerText.includes('еда')) return '🍳';
+    if (lowerText.includes('байк') || lowerText.includes('машина')) return '🔧';
+    if (lowerText.includes('документ')) return '📋';
+    if (lowerText.includes('врач') || lowerText.includes('витамин')) return '💊';
+    if (lowerText.includes('деньги') || lowerText.includes('бюджет')) return '💰';
+    if (lowerText.includes('убор') || lowerText.includes('чист')) return '🧹';
+    if (lowerText.includes('звонок')) return '📞';
+    if (lowerText.includes('дом')) return '🏠';
+    if (lowerText.includes('подъем') || lowerText.includes('утр')) return '🌅';
+    if (lowerText.includes('вечер')) return '🌙';
+    if (lowerText.includes('идея')) return '💡';
+    if (lowerText.includes('учить') || lowerText.includes('книга')) return '📚';
+    if (lowerText.includes('компьютер') || lowerText.includes('рся')) return '💻';
     return '📝';
+  };
+
+  const getCurrentDate = () => {
+    const date = new Date(selectedDate);
+    return date.toLocaleDateString('ru-RU', { 
+      weekday: 'long', 
+      year: 'numeric', 
+      month: 'long', 
+      day: 'numeric' 
+    });
+  };
+
+  const formatDateShort = (dateStr: string) => {
+    const date = new Date(dateStr);
+    const today = new Date().toISOString().split('T')[0];
+    const tomorrow = new Date(Date.now() + 24 * 60 * 60 * 1000).toISOString().split('T')[0];
+    
+    if (dateStr === today) return 'Сегодня';
+    if (dateStr === tomorrow) return 'Завтра';
+    
+    return date.toLocaleDateString('ru-RU', { day: 'numeric', month: 'short' });
+  };
+
+  const changeDate = (direction: number) => {
+    const currentDate = new Date(selectedDate);
+    const newDate = new Date(currentDate);
+    newDate.setDate(currentDate.getDate() + direction);
+    setSelectedDate(newDate.toISOString().split('T')[0]);
   };
 
   const toggleTask = (taskId: number, category: string) => {
     if (category === 'today') {
-      const task = currentDateTasks.find((t: any) => t.id === taskId);
-      
-      if (task && task.isRegular) {
-        setCompletedRegularTasks((prev: any) => {
-          const dateCompleted = prev[selectedDate] || [];
-          const isCompleted = dateCompleted.includes(taskId);
-          
-          return {
-            ...prev,
-            [selectedDate]: isCompleted 
-              ? dateCompleted.filter((id: number) => id !== taskId)
-              : [...dateCompleted, taskId]
-          };
-        });
-      } else {
-        setTasksByDate((prev: any) => ({
-          ...prev,
-          [selectedDate]: (prev[selectedDate] || []).map((task: any) => 
-            task.id === taskId ? { ...task, completed: !task.completed } : task
-          )
-        }));
-      }
+      setTasksByDate((prev: any) => ({
+        ...prev,
+        [selectedDate]: (prev[selectedDate] || []).map((task: any) => 
+          task.id === taskId ? { ...task, completed: !task.completed } : task
+        )
+      }));
     } else if (category === 'noDeadline') {
       setNoDeadlineTasks((prev: any) => prev.map((task: any) => 
         task.id === taskId ? { ...task, completed: !task.completed } : task
@@ -450,23 +380,14 @@ export default function App() {
 
   const deleteTask = (taskId: number, category: string) => {
     if (category === 'today') {
-      const task = currentDateTasks.find((t: any) => t.id === taskId);
-      
-      if (task && task.isRegular) {
-        alert('Регулярные задачи можно удалить только во вкладке "Регулярные"');
-        return;
-      } else {
-        setTasksByDate((prev: any) => ({
-          ...prev,
-          [selectedDate]: (prev[selectedDate] || []).filter((task: any) => task.id !== taskId)
-        }));
-      }
+      setTasksByDate((prev: any) => ({
+        ...prev,
+        [selectedDate]: (prev[selectedDate] || []).filter((task: any) => task.id !== taskId)
+      }));
     } else if (category === 'noDeadline') {
       setNoDeadlineTasks((prev: any) => prev.filter((task: any) => task.id !== taskId));
     } else if (category === 'ideas') {
       setIdeas((prev: any) => prev.filter((task: any) => task.id !== taskId));
-    } else if (category === 'regular') {
-      setDailyTasks((prev: any) => prev.filter((task: any) => task.id !== taskId));
     }
   };
 
@@ -486,10 +407,6 @@ export default function App() {
         ...prev,
         [targetDate]: [...(prev[targetDate] || []), newTask]
       }));
-    } else if (category === 'regular') {
-      newTask.frequency = newTaskFrequency;
-      newTask.days = newTaskDays;
-      setDailyTasks((prev: any) => [...prev, newTask]);
     } else if (category === 'noDeadline') {
       setNoDeadlineTasks((prev: any) => [...prev, newTask]);
     } else if (category === 'ideas') {
@@ -498,9 +415,17 @@ export default function App() {
 
     setNewTaskText('');
     setNewTaskDate(new Date().toISOString().split('T')[0]);
-    setNewTaskFrequency('daily');
-    setNewTaskDays([]);
   };
+
+  const currentDateTasks = tasksByDate[selectedDate] || [];
+  const completedToday = currentDateTasks.filter((t: any) => t.completed).length;
+  const totalToday = currentDateTasks.length;
+
+  const tabs = [
+    { id: 'today', label: 'Сегодня', icon: Calendar, count: currentDateTasks.filter((t: any) => !t.completed).length },
+    { id: 'noDeadline', label: 'Без срока', icon: Clock, count: noDeadlineTasks.length },
+    { id: 'ideas', label: 'Идеи', icon: Lightbulb, count: ideas.length }
+  ];
 
   return (
     <div className="max-w-4xl mx-auto p-6 bg-gradient-to-br from-slate-50 to-blue-50 min-h-screen">
@@ -510,14 +435,7 @@ export default function App() {
           <div className="flex justify-between items-start mb-4">
             <div>
               <h1 className="text-2xl font-bold mb-2">📋 Трекер задач</h1>
-              <p className="text-slate-300">
-                {new Date(selectedDate).toLocaleDateString('ru-RU', { 
-                  weekday: 'long', 
-                  year: 'numeric', 
-                  month: 'long', 
-                  day: 'numeric' 
-                })}
-              </p>
+              <p className="text-slate-300">{getCurrentDate()}</p>
             </div>
             <div className="flex items-center gap-3">
               <div className="text-right">
@@ -586,31 +504,50 @@ export default function App() {
         <div className="p-6">
           {activeTab === 'today' && (
             <div>
-              <div className="flex items-center gap-2 mb-4">
-                <Calendar className="w-5 h-5 text-blue-600" />
-                <h2 className="text-xl font-semibold">Задачи на сегодня</h2>
+              <div className="flex items-center justify-between mb-4">
+                <div className="flex items-center gap-2">
+                  <Calendar className="w-5 h-5 text-blue-600" />
+                  <h2 className="text-xl font-semibold">Задачи</h2>
+                </div>
+                
+                <div className="flex items-center gap-3">
+                  <button
+                    onClick={() => changeDate(-1)}
+                    className="p-2 hover:bg-gray-100 rounded-lg transition-colors"
+                  >
+                    <ChevronLeft className="w-4 h-4" />
+                  </button>
+                  <div className="text-center min-w-[120px]">
+                    <div className="font-medium">{formatDateShort(selectedDate)}</div>
+                    <div className="text-xs text-gray-500">{getCurrentDate().split(',')[0]}</div>
+                  </div>
+                  <button
+                    onClick={() => changeDate(1)}
+                    className="p-2 hover:bg-gray-100 rounded-lg transition-colors"
+                  >
+                    <ChevronRight className="w-4 h-4" />
+                  </button>
+                </div>
               </div>
               
-              <TaskList 
-                tasks={currentDateTasks} 
-                onToggleTask={(id: number) => toggleTask(id, 'today')}
-                onDeleteTask={(id: number) => deleteTask(id, 'today')}
+              <div className="space-y-2 mb-6">
+                {currentDateTasks.map((task: any) => (
+                  <TaskItem
+                    key={task.id}
+                    task={task}
+                    onToggle={(id: number) => toggleTask(id, 'today')}
+                    onDelete={(id: number) => deleteTask(id, 'today')}
+                  />
+                ))}
+              </div>
+              
+              <AddTaskForm 
+                onAdd={() => addTask('today')}
+                text={newTaskText}
+                setText={setNewTaskText}
+                date={newTaskDate}
+                setDate={setNewTaskDate}
               />
-              
-              <div className="mt-6">
-                <AddTaskForm 
-                  category="today"
-                  onAddTask={() => addTask('today')}
-                  newTaskText={newTaskText}
-                  setNewTaskText={setNewTaskText}
-                  newTaskDate={newTaskDate}
-                  setNewTaskDate={setNewTaskDate}
-                  newTaskFrequency={newTaskFrequency}
-                  setNewTaskFrequency={setNewTaskFrequency}
-                  newTaskDays={newTaskDays}
-                  setNewTaskDays={setNewTaskDays}
-                />
-              </div>
             </div>
           )}
 
@@ -621,26 +558,24 @@ export default function App() {
                 <h2 className="text-xl font-semibold">Задачи без срока</h2>
               </div>
               
-              <TaskList 
-                tasks={noDeadlineTasks} 
-                onToggleTask={(id: number) => toggleTask(id, 'noDeadline')}
-                onDeleteTask={(id: number) => deleteTask(id, 'noDeadline')}
-              />
-              
-              <div className="mt-6">
-                <AddTaskForm 
-                  category="noDeadline"
-                  onAddTask={() => addTask('noDeadline')}
-                  newTaskText={newTaskText}
-                  setNewTaskText={setNewTaskText}
-                  newTaskDate={newTaskDate}
-                  setNewTaskDate={setNewTaskDate}
-                  newTaskFrequency={newTaskFrequency}
-                  setNewTaskFrequency={setNewTaskFrequency}
-                  newTaskDays={newTaskDays}
-                  setNewTaskDays={setNewTaskDays}
-                />
+              <div className="space-y-2 mb-6">
+                {noDeadlineTasks.map((task: any) => (
+                  <TaskItem
+                    key={task.id}
+                    task={task}
+                    onToggle={(id: number) => toggleTask(id, 'noDeadline')}
+                    onDelete={(id: number) => deleteTask(id, 'noDeadline')}
+                  />
+                ))}
               </div>
+              
+              <AddTaskForm 
+                onAdd={() => addTask('noDeadline')}
+                text={newTaskText}
+                setText={setNewTaskText}
+                date={newTaskDate}
+                setDate={setNewTaskDate}
+              />
             </div>
           )}
 
@@ -651,64 +586,25 @@ export default function App() {
                 <h2 className="text-xl font-semibold">Идеи</h2>
               </div>
               
-              <TaskList 
-                tasks={ideas} 
-                canToggle={false}
-                onToggleTask={(id: number) => toggleTask(id, 'ideas')}
-                onDeleteTask={(id: number) => deleteTask(id, 'ideas')}
+              <div className="space-y-2 mb-6">
+                {ideas.map((task: any) => (
+                  <TaskItem
+                    key={task.id}
+                    task={task}
+                    canToggle={false}
+                    onToggle={() => {}}
+                    onDelete={(id: number) => deleteTask(id, 'ideas')}
+                  />
+                ))}
+              </div>
+              
+              <AddTaskForm 
+                onAdd={() => addTask('ideas')}
+                text={newTaskText}
+                setText={setNewTaskText}
+                date={newTaskDate}
+                setDate={setNewTaskDate}
               />
-              
-              <div className="mt-6">
-                <AddTaskForm 
-                  category="ideas"
-                  onAddTask={() => addTask('ideas')}
-                  newTaskText={newTaskText}
-                  setNewTaskText={setNewTaskText}
-                  newTaskDate={newTaskDate}
-                  setNewTaskDate={setNewTaskDate}
-                  newTaskFrequency={newTaskFrequency}
-                  setNewTaskFrequency={setNewTaskFrequency}
-                  newTaskDays={newTaskDays}
-                  setNewTaskDays={setNewTaskDays}
-                />
-              </div>
-            </div>
-          )}
-
-          {activeTab === 'regular' && (
-            <div>
-              <div className="flex items-center gap-2 mb-4">
-                <RefreshCw className="w-5 h-5 text-green-600" />
-                <h2 className="text-xl font-semibold">Регулярные задачи</h2>
-              </div>
-              
-              <div className="bg-blue-50 border border-blue-200 rounded-lg p-3 mb-4">
-                <p className="text-blue-800 text-sm">
-                  ℹ️ Регулярные задачи автоматически появляются во вкладке "Сегодня" согласно расписанию.
-                </p>
-              </div>
-              
-              <TaskList 
-                tasks={dailyTasks} 
-                canToggle={false}
-                onToggleTask={(id: number) => toggleTask(id, 'regular')}
-                onDeleteTask={(id: number) => deleteTask(id, 'regular')}
-              />
-              
-              <div className="mt-6">
-                <AddTaskForm 
-                  category="regular"
-                  onAddTask={() => addTask('regular')}
-                  newTaskText={newTaskText}
-                  setNewTaskText={setNewTaskText}
-                  newTaskDate={newTaskDate}
-                  setNewTaskDate={setNewTaskDate}
-                  newTaskFrequency={newTaskFrequency}
-                  setNewTaskFrequency={setNewTaskFrequency}
-                  newTaskDays={newTaskDays}
-                  setNewTaskDays={setNewTaskDays}
-                />
-              </div>
             </div>
           )}
         </div>
