@@ -1,6 +1,6 @@
 import React, { useState, useCallback, useMemo, useEffect } from 'react';
 import { Plus, Trash2, Check, Calendar, Clock, Lightbulb, RefreshCw, ChevronLeft, ChevronRight } from 'lucide-react';
-import { saveUserData, loadUserData, getUserId } from './lib/supabase';
+import { saveUserData, loadUserData } from './lib/supabase';
 
 // Хук для работы с Supabase
 const useSupabaseStorage = (key: string, defaultValue: any) => {
@@ -27,7 +27,7 @@ const useSupabaseStorage = (key: string, defaultValue: any) => {
 
   const setStoredValue = useCallback(async (newValue: any) => {
     try {
-      setValue((currentValue) => {
+      setValue((currentValue: any) => {
         const valueToStore = typeof newValue === 'function' ? newValue(currentValue) : newValue;
         
         // Сохраняем в Supabase асинхронно
