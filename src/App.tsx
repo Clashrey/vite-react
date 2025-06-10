@@ -160,14 +160,7 @@ const useAuth = () => {
   return { isLoggedIn, currentUserId, isLoading, login, logout };
 };
 
-// Обновленная функция getUserId для авторизованных пользователей
-const getAuthenticatedUserId = (): string => {
-  const userId = localStorage.getItem('userId');
-  if (!userId) {
-    throw new Error('User not authenticated');
-  }
-  return userId;
-};
+// Функция getUserId удалена - используется хук useAuth
 
 // Хук для работы с Supabase (обновленный)
 const useSupabaseStorage = (key: string, defaultValue: any) => {
