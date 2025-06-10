@@ -14,12 +14,16 @@ const AuthForm = ({ onLogin }: { onLogin: (userId: string) => void }) => {
       return;
     }
     
+    console.log('🔑 Попытка входа с User ID:', trimmedId);
     setIsLoading(true);
     try {
       localStorage.setItem('userId', trimmedId);
+      console.log('🔍 Проверяем существование пользователя...');
       await loadUserData();
+      console.log('✅ Пользователь найден, выполняем вход');
       onLogin(trimmedId);
     } catch (error) {
+      console.error('❌ Ошибка входа:', error);
       alert('Ошибка входа. Проверьте User ID.');
       localStorage.removeItem('userId');
     }
@@ -137,15 +141,22 @@ const useAuth = () => {
 
   useEffect(() => {
     const checkAuth = async () => {
+      console.log('🔐 Проверяем авторизацию...');
       const storedUserId = localStorage.getItem('userId');
+      
       if (storedUserId) {
+        console.log('🆔 Найден User ID:', storedUserId);
         try {
           await loadUserData();
+          console.log('✅ Данные успешно загружены, пользователь авторизован');
           setCurrentUserId(storedUserId);
           setIsLoggedIn(true);
         } catch (error) {
+          console.error('❌ Ошибка загрузки данных, очищаем некорректный ID:', error);
           localStorage.removeItem('userId');
         }
+      } else {
+        console.log('ℹ️ User ID не найден, показываем форму авторизации');
       }
       setIsLoading(false);
     };
@@ -154,6 +165,7 @@ const useAuth = () => {
   }, []); // ИСПРАВЛЕНО: убрал loadUserData из dependencies
 
   const login = useCallback((userId: string) => {
+    console.log('🚪 Вход пользователя:', userId);
     setCurrentUserId(userId);
     setIsLoggedIn(true);
   }, []);
@@ -169,15 +181,24 @@ const useAuth = () => {
 };
 
 // Хук для работы с Supabase - ИСПРАВЛЕН
-const useSupabaseStorage = (key: string, defaultValue: any) => {
+const useSupabaseStorage = (key: string, defaultValue: any, isLoggedIn: boolean) => {
   const [value, setValue] = useState(defaultValue);
   const [isLoaded, setIsLoaded] = useState(false);
 
   useEffect(() => {
+    // НЕ загружаем данные пока пользователь не авторизован
+    if (!isLoggedIn) {
+      setValue(defaultValue);
+      setIsLoaded(true);
+      return;
+    }
+
     const loadData = async () => {
       try {
+        console.log(`🔍 Загружаем ${key} для авторизованного пользователя`);
         const userData = await loadUserData();
         console.log('🔍 Загруженные данные:', userData);
+        
         if (userData && userData[key] !== undefined) {
           setValue(userData[key]);
           console.log(`✅ Загружен ${key}:`, userData[key]);
@@ -194,9 +215,15 @@ const useSupabaseStorage = (key: string, defaultValue: any) => {
     };
     
     loadData();
-  }, [key]);
+  }, [key, isLoggedIn]); // Добавляем isLoggedIn как зависимость
 
   const setStoredValue = useCallback(async (newValue: any) => {
+    // НЕ сохраняем если пользователь не авторизован
+    if (!isLoggedIn) {
+      setValue(newValue);
+      return;
+    }
+
     setValue((currentValue: any) => {
       const valueToStore = typeof newValue === 'function' ? newValue(currentValue) : newValue;
       
@@ -219,7 +246,7 @@ const useSupabaseStorage = (key: string, defaultValue: any) => {
       saveData();
       return valueToStore;
     });
-  }, [key]);
+  }, [key, isLoggedIn]);
 
   return [value, setStoredValue, isLoaded];
 };
@@ -371,11 +398,11 @@ export default function App() {
   const [selectedDate] = useState(new Date().toISOString().split('T')[0]);
   
   // Хуки данных - используются только когда пользователь авторизован
-  const [tasksByDate, setTasksByDate] = useSupabaseStorage('tasksByDate', {});
-  const [noDeadlineTasks, setNoDeadlineTasks] = useSupabaseStorage('noDeadlineTasks', []);
-  const [ideas, setIdeas] = useSupabaseStorage('ideas', []);
-  const [dailyTasks, setDailyTasks] = useSupabaseStorage('dailyTasks', []);
-  const [completedRegularTasks, setCompletedRegularTasks] = useSupabaseStorage('completedRegularTasks', {});
+  const [tasksByDate, setTasksByDate] = useSupabaseStorage('tasksByDate', {}, isLoggedIn);
+  const [noDeadlineTasks, setNoDeadlineTasks] = useSupabaseStorage('noDeadlineTasks', [], isLoggedIn);
+  const [ideas, setIdeas] = useSupabaseStorage('ideas', [], isLoggedIn);
+  const [dailyTasks, setDailyTasks] = useSupabaseStorage('dailyTasks', [], isLoggedIn);
+  const [completedRegularTasks, setCompletedRegularTasks] = useSupabaseStorage('completedRegularTasks', {}, isLoggedIn);
 
   console.log('🔄 Текущие данные:', { tasksByDate, noDeadlineTasks, ideas, dailyTasks, completedRegularTasks });
 
