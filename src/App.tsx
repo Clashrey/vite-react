@@ -60,9 +60,27 @@ const AuthForm = ({ onLogin }: { onLogin: (userId: string) => void }) => {
         </div>
 
         <div className="space-y-4">
+          {/* Основная кнопка для новых пользователей */}
+          <button
+            onClick={handleRegister}
+            disabled={isLoading}
+            className="w-full py-4 bg-blue-600 text-white rounded-lg hover:bg-blue-700 disabled:bg-slate-300 disabled:cursor-not-allowed transition-colors font-medium text-lg"
+          >
+            {isLoading ? 'Создание аккаунта...' : '🚀 Создать новый аккаунт'}
+          </button>
+
+          <div className="relative">
+            <div className="absolute inset-0 flex items-center">
+              <div className="w-full border-t border-slate-300"></div>
+            </div>
+            <div className="relative flex justify-center text-sm">
+              <span className="px-2 bg-white text-slate-500">Уже есть аккаунт?</span>
+            </div>
+          </div>
+
           <div>
             <label className="block text-sm font-medium text-slate-700 mb-2">
-              User ID
+              User ID для входа
             </label>
             <input
               type="text"
@@ -74,42 +92,25 @@ const AuthForm = ({ onLogin }: { onLogin: (userId: string) => void }) => {
               disabled={isLoading}
             />
             <p className="text-xs text-slate-500 mt-1">
-              Введите ваш существующий User ID для входа
+              Введите ваш User ID с другого устройства
             </p>
           </div>
 
           <button
             onClick={handleLogin}
             disabled={isLoading || !userId.trim()}
-            className="w-full py-3 bg-blue-600 text-white rounded-lg hover:bg-blue-700 disabled:bg-slate-300 disabled:cursor-not-allowed transition-colors font-medium"
+            className="w-full py-3 bg-slate-600 text-white rounded-lg hover:bg-slate-700 disabled:bg-slate-300 disabled:cursor-not-allowed transition-colors font-medium"
           >
-            {isLoading ? 'Вход...' : 'Войти'}
-          </button>
-
-          <div className="relative">
-            <div className="absolute inset-0 flex items-center">
-              <div className="w-full border-t border-slate-300"></div>
-            </div>
-            <div className="relative flex justify-center text-sm">
-              <span className="px-2 bg-white text-slate-500">или</span>
-            </div>
-          </div>
-
-          <button
-            onClick={handleRegister}
-            disabled={isLoading}
-            className="w-full py-3 bg-green-600 text-white rounded-lg hover:bg-green-700 disabled:bg-slate-300 disabled:cursor-not-allowed transition-colors font-medium"
-          >
-            {isLoading ? 'Создание...' : 'Создать новый аккаунт'}
+            {isLoading ? 'Вход...' : 'Войти с существующим ID'}
           </button>
         </div>
 
         <div className="mt-6 p-4 bg-blue-50 rounded-lg">
           <h3 className="text-sm font-medium text-blue-800 mb-2">💡 Как это работает:</h3>
           <ul className="text-xs text-blue-700 space-y-1">
-            <li>• <strong>Вход:</strong> Введите ваш User ID с другого устройства</li>
-            <li>• <strong>Регистрация:</strong> Создаст новый ID и аккаунт</li>
-            <li>• <strong>Синхронизация:</strong> Используйте один ID на всех устройствах</li>
+            <li>• <strong>Новый пользователь?</strong> Нажмите "Создать новый аккаунт" — получите уникальный ID</li>
+            <li>• <strong>Есть аккаунт?</strong> Введите ваш User ID и войдите</li>
+            <li>• <strong>Синхронизация:</strong> Используйте один ID на всех ваших устройствах</li>
           </ul>
         </div>
       </div>
