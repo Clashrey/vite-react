@@ -1,30 +1,55 @@
-import React, { useState, useCallback, useMemo } from 'react';
+import React, { useState, useCallback, useMemo, useEffect } from 'react';
 import { Plus, Trash2, Check, Calendar, Clock, Lightbulb, RefreshCw, ChevronLeft, ChevronRight } from 'lucide-react';
+import { saveUserData, loadUserData, getUserId } from './lib/supabase';
 
-// Утилиты для localStorage
-const useLocalStorage = (key: string, defaultValue: any) => {
-  const [value, setValue] = useState(() => {
+// Хук для работы с Supabase
+const useSupabaseStorage = (key: string, defaultValue: any) => {
+  const [value, setValue] = useState(defaultValue);
+  const [isLoaded, setIsLoaded] = useState(false);
+
+  // Загружаем данные при инициализации
+  useEffect(() => {
+    const loadData = async () => {
+      try {
+        const userData = await loadUserData();
+        if (userData && userData[key]) {
+          setValue(userData[key]);
+        }
+        setIsLoaded(true);
+      } catch (error) {
+        console.error(`Ошибка загрузки ${key}:`, error);
+        setIsLoaded(true);
+      }
+    };
+    
+    loadData();
+  }, [key]);
+
+  const setStoredValue = useCallback(async (newValue: any) => {
     try {
-      const item = window.localStorage.getItem(key);
-      return item ? JSON.parse(item) : defaultValue;
+      setValue((currentValue) => {
+        const valueToStore = typeof newValue === 'function' ? newValue(currentValue) : newValue;
+        
+        // Сохраняем в Supabase асинхронно
+        setTimeout(async () => {
+          try {
+            const userData = await loadUserData() || {};
+            userData[key] = valueToStore;
+            await saveUserData(userData);
+            console.log(`✅ ${key} сохранен в облаке`);
+          } catch (error) {
+            console.error(`Ошибка сохранения ${key}:`, error);
+          }
+        }, 100);
+        
+        return valueToStore;
+      });
     } catch (error) {
-      console.error(`Error loading ${key} from localStorage:`, error);
-      return defaultValue;
+      console.error(`Ошибка установки ${key}:`, error);
     }
-  });
+  }, [key]);
 
-  const setStoredValue = useCallback((newValue: any) => {
-    try {
-      // Если newValue это функция (как в setState), вызываем её
-      const valueToStore = typeof newValue === 'function' ? newValue(value) : newValue;
-      setValue(valueToStore);
-      window.localStorage.setItem(key, JSON.stringify(valueToStore));
-    } catch (error) {
-      console.error(`Error saving ${key} to localStorage:`, error);
-    }
-  }, [key, value]);
-
-  return [value, setStoredValue];
+  return [value, setStoredValue, isLoaded];
 };
 
 // Мемоизированный компонент для добавления задач
@@ -402,7 +427,7 @@ export default function App() {
   const [selectedDate, setSelectedDate] = useState(new Date().toISOString().split('T')[0]);
   
   // Данные с localStorage
-  const [tasksByDate, setTasksByDate] = useLocalStorage('tasksByDate', {
+  const [tasksByDate, setTasksByDate] = useSupabaseStorage('tasksByDate', {
     [new Date().toISOString().split('T')[0]]: [
       { id: 1, text: 'Подъем', completed: true, emoji: '🌅' },
       { id: 2, text: 'Утренняя рутина', completed: true, emoji: '☀️' },
@@ -415,7 +440,7 @@ export default function App() {
     ]
   });
 
-  const [noDeadlineTasks, setNoDeadlineTasks] = useLocalStorage('noDeadlineTasks', [
+  const [noDeadlineTasks, setNoDeadlineTasks] = useSupabaseStorage('noDeadlineTasks', [
     { id: 101, text: 'Подготовить к запуску хотя бы один канал-афишу', emoji: '📺' },
     { id: 102, text: 'Разобраться с РКН в Тюмени (или уточнить актуальность)', emoji: '⚙️' },
     { id: 103, text: 'Узнать про починку байка', emoji: '🏍️' },
@@ -426,20 +451,20 @@ export default function App() {
     { id: 108, text: 'Запустить рассылку по агентствам (если отложено)', emoji: '📧' }
   ]);
 
-  const [ideas, setIdeas] = useLocalStorage('ideas', [
+  const [ideas, setIdeas] = useSupabaseStorage('ideas', [
     { id: 201, text: 'Концепция афишного канала — шаблоны для постов', emoji: '💡' },
     { id: 202, text: 'Канал по экономике — запуск (Ростов или Питер?)', emoji: '📊' }
   ]);
 
-  const [dailyTasks, setDailyTasks] = useLocalStorage('dailyTasks', [
+  const [dailyTasks, setDailyTasks] = useSupabaseStorage('dailyTasks', [
     { id: 301, text: 'Уход за собой — борода, ногти, нос, брови', emoji: '🧔', frequency: 'weekly', days: [0] },
     { id: 302, text: 'Заполнить бюджет', emoji: '📋', frequency: 'weekly', days: [0] },
     { id: 303, text: 'Почистить зубы вечером', emoji: '🦷', frequency: 'daily', days: [] },
     { id: 304, text: 'Магний + урсосан вечером', emoji: '🌙', frequency: 'daily', days: [] }
   ]);
 
-  const [completedRegularTasks, setCompletedRegularTasks] = useLocalStorage('completedRegularTasks', {});
-  const [regularTasksOrder, setRegularTasksOrder] = useLocalStorage('regularTasksOrder', {});
+  const [completedRegularTasks, setCompletedRegularTasks] = useSupabaseStorage('completedRegularTasks', {});
+  const [regularTasksOrder, setRegularTasksOrder] = useSupabaseStorage('regularTasksOrder', {});
 
   // Состояние для drag and drop (не сохраняется)
   const [draggedItem, setDraggedItem] = useState<any>(null);
