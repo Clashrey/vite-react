@@ -42,18 +42,13 @@ export const loadUserData = async (): Promise<any> => {
     .from('user_tasks')
     .select('task_data')
     .eq('user_id', userId)
-    // убрали .single() !
+    .single()
   
   if (error) {
-    console.log('ℹ️ Database error:', error.message)
-    return null
-  }
-  
-  if (!data || data.length === 0) {
-    console.log('ℹ️ No data found for user')
+    console.log('ℹ️ No data found:', error.message)
     return null
   }
   
   console.log('✅ Loaded!')
-  return data[0]?.task_data || null
+  return data?.task_data || null
 }
