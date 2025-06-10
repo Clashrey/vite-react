@@ -611,7 +611,6 @@ export default function App() {
   const [newTaskDate, setNewTaskDate] = useState(new Date().toISOString().split('T')[0]);
   const [newTaskFrequency, setNewTaskFrequency] = useState('daily');
   const [newTaskDays, setNewTaskDays] = useState<number[]>([]);
-  const [showCalendar, setShowCalendar] = useState(false);
 
   // Показываем загрузку
   if (isLoading) {
@@ -955,10 +954,6 @@ export default function App() {
     deleteTask(taskId, category);
   };
 
-  const handleSelectDate = (dateStr: string) => {
-    setSelectedDate(dateStr);
-  };
-
   return (
     <div className="max-w-4xl mx-auto p-6 bg-gradient-to-br from-slate-50 to-blue-50 min-h-screen">
       <div className="bg-white rounded-xl shadow-lg overflow-hidden">
@@ -1084,17 +1079,6 @@ export default function App() {
                 
                 <div className="flex items-center gap-3">
                   <button
-                    onClick={() => setShowCalendar(!showCalendar)}
-                    className={`px-3 py-2 rounded-lg transition-colors text-sm ${
-                      showCalendar 
-                        ? 'bg-blue-600 text-white' 
-                        : 'bg-gray-100 text-gray-600 hover:bg-gray-200'
-                    }`}
-                  >
-                    📅 Календарь
-                  </button>
-                  
-                  <button
                     onClick={() => changeDate(-1)}
                     className="p-2 hover:bg-gray-100 rounded-lg transition-colors"
                   >
@@ -1112,14 +1096,6 @@ export default function App() {
                   </button>
                 </div>
               </div>
-              
-              {showCalendar && (
-                <MiniCalendar 
-                  selectedDate={selectedDate}
-                  tasksByDate={tasksByDate}
-                  onSelectDate={handleSelectDate}
-                />
-              )}
               
               {currentDateTasks.some((t: any) => t.isRegular) && (
                 <div className="bg-blue-50 border border-blue-200 rounded-lg p-3 mb-4">
