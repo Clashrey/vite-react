@@ -1,5 +1,5 @@
-import React, { useState, useCallback, useEffect } from 'react';
-import { Plus, Trash2, Check, Calendar, Clock, Lightbulb, RefreshCw, LogOut, User } from 'lucide-react';
+import React, { useState, useCallback, useMemo, useEffect } from 'react';
+import { Plus, Trash2, Check, Calendar, Clock, Lightbulb, RefreshCw, ChevronLeft, ChevronRight, LogOut, User } from 'lucide-react';
 import { saveUserData, loadUserData } from './lib/supabase';
 
 // Компонент авторизации
@@ -14,16 +14,12 @@ const AuthForm = ({ onLogin }: { onLogin: (userId: string) => void }) => {
       return;
     }
     
-    console.log('🔑 Попытка входа с User ID:', trimmedId);
     setIsLoading(true);
     try {
       localStorage.setItem('userId', trimmedId);
-      console.log('🔍 Проверяем существование пользователя...');
       await loadUserData();
-      console.log('✅ Пользователь найден, выполняем вход');
       onLogin(trimmedId);
     } catch (error) {
-      console.error('❌ Ошибка входа:', error);
       alert('Ошибка входа. Проверьте User ID.');
       localStorage.removeItem('userId');
     }
@@ -36,30 +32,17 @@ const AuthForm = ({ onLogin }: { onLogin: (userId: string) => void }) => {
     
     try {
       localStorage.setItem('userId', newUserId);
-      
-      // Создаем начальные данные для нового пользователя
-      const initialData = {
+      await saveUserData({
         tasksByDate: {},
         noDeadlineTasks: [],
         ideas: [],
         dailyTasks: [],
         completedRegularTasks: {},
         regularTasksOrder: {}
-      };
-      
-      console.log('🆕 Создаем нового пользователя:', newUserId);
-      console.log('📝 Начальные данные:', initialData);
-      
-      const success = await saveUserData(initialData);
-      if (success) {
-        console.log('✅ Пользователь успешно создан');
-        onLogin(newUserId);
-      } else {
-        throw new Error('Не удалось сохранить данные пользователя');
-      }
+      });
+      onLogin(newUserId);
     } catch (error) {
-      console.error('❌ Ошибка регистрации:', error);
-      alert('Ошибка регистрации. Попробуйте еще раз.');
+      alert('Ошибка регистрации');
       localStorage.removeItem('userId');
     }
     setIsLoading(false);
@@ -75,7 +58,6 @@ const AuthForm = ({ onLogin }: { onLogin: (userId: string) => void }) => {
         </div>
 
         <div className="space-y-4">
-          {/* Основная кнопка для новых пользователей */}
           <button
             onClick={handleRegister}
             disabled={isLoading}
@@ -133,7 +115,7 @@ const AuthForm = ({ onLogin }: { onLogin: (userId: string) => void }) => {
   );
 };
 
-// Хук для авторизации - ИСПРАВЛЕН
+// Хук для авторизации
 const useAuth = () => {
   const [isLoggedIn, setIsLoggedIn] = useState(false);
   const [currentUserId, setCurrentUserId] = useState<string | null>(null);
@@ -141,31 +123,23 @@ const useAuth = () => {
 
   useEffect(() => {
     const checkAuth = async () => {
-      console.log('🔐 Проверяем авторизацию...');
       const storedUserId = localStorage.getItem('userId');
-      
       if (storedUserId) {
-        console.log('🆔 Найден User ID:', storedUserId);
         try {
           await loadUserData();
-          console.log('✅ Данные успешно загружены, пользователь авторизован');
           setCurrentUserId(storedUserId);
           setIsLoggedIn(true);
         } catch (error) {
-          console.error('❌ Ошибка загрузки данных, очищаем некорректный ID:', error);
           localStorage.removeItem('userId');
         }
-      } else {
-        console.log('ℹ️ User ID не найден, показываем форму авторизации');
       }
       setIsLoading(false);
     };
 
     checkAuth();
-  }, []); // ИСПРАВЛЕНО: убрал loadUserData из dependencies
+  }, []);
 
   const login = useCallback((userId: string) => {
-    console.log('🚪 Вход пользователя:', userId);
     setCurrentUserId(userId);
     setIsLoggedIn(true);
   }, []);
@@ -180,83 +154,50 @@ const useAuth = () => {
   return { isLoggedIn, currentUserId, isLoading, login, logout };
 };
 
-// Хук для работы с Supabase - ИСПРАВЛЕН
-const useSupabaseStorage = (key: string, defaultValue: any, isLoggedIn: boolean) => {
+// Хук для работы с Supabase
+const useSupabaseStorage = (key: string, defaultValue: any) => {
   const [value, setValue] = useState(defaultValue);
   const [isLoaded, setIsLoaded] = useState(false);
 
   useEffect(() => {
-    // НЕ загружаем данные пока пользователь не авторизован
-    if (!isLoggedIn) {
-      setValue(defaultValue);
-      setIsLoaded(true);
-      return;
-    }
-
     const loadData = async () => {
       try {
-        console.log(`🔍 Загружаем ${key} для авторизованного пользователя`);
         const userData = await loadUserData();
-        console.log('🔍 Загруженные данные:', userData);
-        
-        if (userData && userData[key] !== undefined) {
+        if (userData && userData[key]) {
           setValue(userData[key]);
-          console.log(`✅ Загружен ${key}:`, userData[key]);
-        } else {
-          console.log(`ℹ️ Нет данных для ${key}, используем значение по умолчанию`);
-          setValue(defaultValue);
         }
+        setIsLoaded(true);
       } catch (error) {
-        console.error(`❌ Ошибка загрузки ${key}:`, error);
-        setValue(defaultValue);
-      } finally {
+        console.error(`Ошибка загрузки ${key}:`, error);
         setIsLoaded(true);
       }
     };
     
     loadData();
-  }, [key, isLoggedIn]); // Добавляем isLoggedIn как зависимость
+  }, [key]);
 
   const setStoredValue = useCallback(async (newValue: any) => {
-    console.log(`💾 setStoredValue вызван для ${key}, isLoggedIn:`, isLoggedIn);
-    console.log(`📝 Новое значение:`, newValue);
-    
-    // НЕ сохраняем если пользователь не авторизован
-    if (!isLoggedIn) {
-      console.log(`⚠️ Пользователь не авторизован, только локальное изменение`);
-      setValue(newValue);
-      return;
-    }
-
-    setValue((currentValue: any) => {
-      const valueToStore = typeof newValue === 'function' ? newValue(currentValue) : newValue;
-      console.log(`🔄 Обработанное значение для сохранения:`, valueToStore);
-      
-      // Сохраняем немедленно
-      const saveData = async () => {
-        try {
-          console.log(`🌐 Начинаем сохранение ${key} в Supabase...`);
-          const userData = await loadUserData() || {};
-          console.log(`📥 Текущие данные пользователя:`, userData);
-          
-          userData[key] = valueToStore;
-          console.log(`📤 Данные для сохранения:`, userData);
-          
-          const success = await saveUserData(userData);
-          if (success) {
-            console.log(`✅ ${key} успешно сохранен в облаке:`, valueToStore);
-          } else {
-            console.error(`❌ Не удалось сохранить ${key}`);
+    try {
+      setValue((currentValue: any) => {
+        const valueToStore = typeof newValue === 'function' ? newValue(currentValue) : newValue;
+        
+        setTimeout(async () => {
+          try {
+            const userData = await loadUserData() || {};
+            userData[key] = valueToStore;
+            await saveUserData(userData);
+            console.log(`✅ ${key} сохранен в облаке`);
+          } catch (error) {
+            console.error(`Ошибка сохранения ${key}:`, error);
           }
-        } catch (error) {
-          console.error(`❌ Ошибка сохранения ${key}:`, error);
-        }
-      };
-      
-      saveData();
-      return valueToStore;
-    });
-  }, [key, isLoggedIn]);
+        }, 100);
+        
+        return valueToStore;
+      });
+    } catch (error) {
+      console.error(`Ошибка установки ${key}:`, error);
+    }
+  }, [key]);
 
   return [value, setStoredValue, isLoaded];
 };
@@ -270,6 +211,10 @@ const AddTaskForm = React.memo(({ category, onAddTask, newTaskText, setNewTaskTe
     }
   }, [onAddTask]);
 
+  const handleTextChange = useCallback((e: any) => {
+    setNewTaskText(e.target.value);
+  }, [setNewTaskText]);
+
   const toggleDay = useCallback((dayIndex: number) => {
     setNewTaskDays((prev: number[]) => 
       prev.includes(dayIndex) 
@@ -278,13 +223,24 @@ const AddTaskForm = React.memo(({ category, onAddTask, newTaskText, setNewTaskTe
     );
   }, [setNewTaskDays]);
 
+  const formatDateShort = (dateStr: string) => {
+    const date = new Date(dateStr);
+    const today = new Date().toISOString().split('T')[0];
+    const tomorrow = new Date(Date.now() + 24 * 60 * 60 * 1000).toISOString().split('T')[0];
+    
+    if (dateStr === today) return 'Сегодня';
+    if (dateStr === tomorrow) return 'Завтра';
+    
+    return date.toLocaleDateString('ru-RU', { day: 'numeric', month: 'short' });
+  };
+
   return (
     <div className="bg-gray-50 p-4 rounded-lg">
       <div className="flex gap-2 mb-2">
         <input
           type="text"
           value={newTaskText}
-          onChange={(e) => setNewTaskText(e.target.value)}
+          onChange={handleTextChange}
           placeholder="Новая задача..."
           className="flex-1 px-3 py-2 border rounded focus:outline-none focus:ring-2 focus:ring-blue-500"
           onKeyDown={handleKeyDown}
@@ -344,58 +300,269 @@ const AddTaskForm = React.memo(({ category, onAddTask, newTaskText, setNewTaskTe
           )}
         </div>
       )}
+      
+      {category === 'today' && newTaskDate !== new Date().toISOString().split('T')[0] && (
+        <p className="text-sm text-blue-600 mt-2">
+          ➕ Задача будет добавлена на {formatDateShort(newTaskDate)}
+        </p>
+      )}
     </div>
   );
 });
 
-const TaskList = React.memo(({ tasks, canToggle = true, onToggleTask, onDeleteTask }: any) => {
+const TaskList = React.memo(({ tasks, category, showCompleted = true, canToggle = true, onToggleTask, onDeleteTask, onDragStart, onDragOver, onDragLeave, onDrop, dragOverIndex }: any) => {
+  const { activeTasks, completedTasks } = useMemo(() => {
+    const completed = tasks.filter((task: any) => task.completed);
+    const active = showCompleted ? tasks : tasks.filter((task: any) => !task.completed);
+    return { activeTasks: active, completedTasks: completed };
+  }, [tasks, showCompleted]);
+
+  const displayTasks = showCompleted ? activeTasks : activeTasks.filter((task: any) => !task.completed);
+
+  const { regularTasks, normalTasks } = useMemo(() => {
+    if (category === 'today') {
+      return {
+        regularTasks: displayTasks.filter((t: any) => t.isRegular),
+        normalTasks: displayTasks.filter((t: any) => !t.isRegular)
+      };
+    }
+    return { regularTasks: [], normalTasks: displayTasks };
+  }, [displayTasks, category]);
+
   return (
     <div className="space-y-2">
-      {tasks.map((task: any) => (
-        <div
-          key={task.id}
-          className={`flex items-center gap-3 p-3 rounded-lg border transition-all ${
-            task.completed 
-              ? 'bg-green-50 border-green-200' 
-              : task.isRegular 
-                ? 'bg-blue-50 border-blue-200'
-                : 'bg-white border-gray-200 hover:shadow-sm'
-          }`}
-        >
-          {canToggle && (
-            <button
-              onClick={() => onToggleTask(task.id)}
-              className={`flex-shrink-0 w-6 h-6 rounded-full border-2 flex items-center justify-center transition-colors ${
-                task.completed
-                  ? 'bg-green-500 border-green-500 text-white'
-                  : 'border-gray-300 hover:border-blue-500'
+      {category === 'today' && regularTasks.length > 0 && (
+        <div className="space-y-2">
+          {regularTasks.map((task: any, index: number) => (
+            <div
+              key={task.id}
+              draggable={true}
+              onDragStart={(e) => onDragStart(e, task, index, 'regular')}
+              onDragOver={(e) => onDragOver(e, index, 'regular')}
+              onDragLeave={onDragLeave}
+              onDrop={(e) => onDrop(e, index, 'regular')}
+              className={`flex items-center gap-3 p-3 rounded-lg border transition-all cursor-move ${
+                task.completed 
+                  ? 'bg-green-50 border-green-200' 
+                  : 'bg-blue-50 border-blue-200'
+              } ${
+                dragOverIndex?.index === index && dragOverIndex?.type === 'regular' ? 'border-blue-500 bg-blue-100' : ''
               }`}
             >
-              {task.completed && <Check className="w-4 h-4" />}
-            </button>
-          )}
-          
-          <span className="text-lg">{task.emoji}</span>
-          
-          <div className="flex-1">
-            <span className={`${task.completed ? 'line-through text-gray-500' : 'text-gray-800'}`}>
-              {task.text}
-            </span>
-            {task.isRegular && (
-              <span className="ml-2 px-2 py-1 bg-blue-100 text-blue-700 text-xs rounded-full">
-                регулярная
-              </span>
-            )}
-          </div>
-          
-          <button
-            onClick={() => onDeleteTask(task.id)}
-            className="flex-shrink-0 p-1 text-gray-400 hover:text-red-500 transition-colors"
-          >
-            <Trash2 className="w-4 h-4" />
-          </button>
+              <div className="flex-shrink-0 text-gray-400 cursor-move">
+                <svg width="16" height="16" viewBox="0 0 16 16" fill="currentColor">
+                  <circle cx="4" cy="4" r="1"/>
+                  <circle cx="4" cy="8" r="1"/>
+                  <circle cx="4" cy="12" r="1"/>
+                  <circle cx="8" cy="4" r="1"/>
+                  <circle cx="8" cy="8" r="1"/>
+                  <circle cx="8" cy="12" r="1"/>
+                  <circle cx="12" cy="4" r="1"/>
+                  <circle cx="12" cy="8" r="1"/>
+                  <circle cx="12" cy="12" r="1"/>
+                </svg>
+              </div>
+              
+              {canToggle && (
+                <button
+                  onClick={() => onToggleTask(task.id)}
+                  className={`flex-shrink-0 w-6 h-6 rounded-full border-2 flex items-center justify-center transition-colors ${
+                    task.completed
+                      ? 'bg-green-500 border-green-500 text-white'
+                      : 'border-gray-300 hover:border-blue-500'
+                  }`}
+                >
+                  {task.completed && <Check className="w-4 h-4" />}
+                </button>
+              )}
+              
+              <span className="text-lg">{task.emoji}</span>
+              
+              <div className="flex-1">
+                <div className="flex items-center gap-2">
+                  <span className={`${task.completed ? 'line-through text-gray-500' : 'text-gray-800'}`}>
+                    {task.text}
+                  </span>
+                  <span className="px-2 py-1 bg-blue-100 text-blue-700 text-xs rounded-full">
+                    регулярная
+                  </span>
+                </div>
+                {task.frequency && (
+                  <div className="text-xs text-blue-600 mt-1">
+                    {task.frequency === 'daily' ? 'Ежедневно' : 
+                     task.frequency === 'weekly' ? `По ${task.days?.map((d: number) => ['Вс','Пн','Вт','Ср','Чт','Пт','Сб'][d]).join(', ')}` : 
+                     task.frequency}
+                  </div>
+                )}
+              </div>
+              
+              <button
+                onClick={() => onDeleteTask(task.id)}
+                className="flex-shrink-0 p-1 text-gray-400 hover:text-red-500 transition-colors"
+              >
+                <Trash2 className="w-4 h-4" />
+              </button>
+            </div>
+          ))}
         </div>
-      ))}
+      )}
+
+      {(category !== 'today' ? displayTasks : normalTasks).map((task: any, index: number) => {
+        return (
+          <div
+            key={task.id}
+            draggable={true}
+            onDragStart={(e) => onDragStart(e, task, index, 'normal')}
+            onDragOver={(e) => onDragOver(e, index, 'normal')}
+            onDragLeave={onDragLeave}
+            onDrop={(e) => onDrop(e, index, 'normal')}
+            className={`flex items-center gap-3 p-3 rounded-lg border transition-all cursor-move ${
+              task.completed 
+                ? 'bg-green-50 border-green-200' 
+                : task.isRegular 
+                  ? 'bg-blue-50 border-blue-200'
+                  : 'bg-white border-gray-200 hover:shadow-sm'
+            } ${
+              dragOverIndex?.index === index && dragOverIndex?.type === 'normal' ? 'border-blue-500 bg-blue-50' : ''
+            }`}
+          >
+            <div className="flex-shrink-0 text-gray-400 cursor-move">
+              <svg width="16" height="16" viewBox="0 0 16 16" fill="currentColor">
+                <circle cx="4" cy="4" r="1"/>
+                <circle cx="4" cy="8" r="1"/>
+                <circle cx="4" cy="12" r="1"/>
+                <circle cx="8" cy="4" r="1"/>
+                <circle cx="8" cy="8" r="1"/>
+                <circle cx="8" cy="12" r="1"/>
+                <circle cx="12" cy="4" r="1"/>
+                <circle cx="12" cy="8" r="1"/>
+                <circle cx="12" cy="12" r="1"/>
+              </svg>
+            </div>
+            
+            {canToggle && (
+              <button
+                onClick={() => onToggleTask(task.id)}
+                className={`flex-shrink-0 w-6 h-6 rounded-full border-2 flex items-center justify-center transition-colors ${
+                  task.completed
+                    ? 'bg-green-500 border-green-500 text-white'
+                    : 'border-gray-300 hover:border-blue-500'
+                }`}
+              >
+                {task.completed && <Check className="w-4 h-4" />}
+              </button>
+            )}
+            
+            <span className="text-lg">{task.emoji}</span>
+            
+            <div className="flex-1">
+              <div className="flex items-center gap-2">
+                <span className={`${task.completed ? 'line-through text-gray-500' : 'text-gray-800'}`}>
+                  {task.text}
+                </span>
+                {task.isRegular && (
+                  <span className="px-2 py-1 bg-blue-100 text-blue-700 text-xs rounded-full">
+                    регулярная
+                  </span>
+                )}
+              </div>
+              {task.frequency && (
+                <div className="text-xs text-blue-600 mt-1">
+                  {task.frequency === 'daily' ? 'Ежедневно' : 
+                   task.frequency === 'weekly' ? `По ${task.days?.map((d: number) => ['Вс','Пн','Вт','Ср','Чт','Пт','Сб'][d]).join(', ')}` : 
+                   task.frequency}
+                </div>
+              )}
+            </div>
+            
+            <button
+              onClick={() => onDeleteTask(task.id)}
+              className="flex-shrink-0 p-1 text-gray-400 hover:text-red-500 transition-colors"
+            >
+              <Trash2 className="w-4 h-4" />
+            </button>
+          </div>
+        );
+      })}
+      
+      {showCompleted && completedTasks.length > 0 && displayTasks.some((t: any) => !t.completed) && (
+        <div className="border-t pt-3 mt-4">
+          <p className="text-sm text-gray-500 mb-2">✅ Выполнено ({completedTasks.length})</p>
+        </div>
+      )}
+    </div>
+  );
+});
+
+const MiniCalendar = React.memo(({ selectedDate, tasksByDate, onSelectDate }: any) => {
+  const calendarData = useMemo(() => {
+    const today = new Date();
+    const currentMonth = today.getMonth();
+    const currentYear = today.getFullYear();
+    const firstDay = new Date(currentYear, currentMonth, 1).getDay();
+    const daysInMonth = new Date(currentYear, currentMonth + 1, 0).getDate();
+    const todayDate = today.getDate();
+    const selectedDateObj = new Date(selectedDate);
+    const selectedDay = selectedDateObj.getDate();
+    const selectedMonth = selectedDateObj.getMonth();
+    const selectedYear = selectedDateObj.getFullYear();
+    
+    return {
+      firstDay,
+      daysInMonth,
+      todayDate,
+      selectedDay,
+      selectedMonth,
+      selectedYear,
+      currentMonth,
+      currentYear
+    };
+  }, [selectedDate]);
+
+  return (
+    <div className="bg-gradient-to-r from-blue-50 to-indigo-50 rounded-lg p-4 mb-6">
+      <div className="grid grid-cols-7 gap-1 text-center">
+        {['Вс', 'Пн', 'Вт', 'Ср', 'Чт', 'Пт', 'Сб'].map(day => (
+          <div key={day} className="text-xs font-medium text-gray-600 py-1">{day}</div>
+        ))}
+        
+        {Array.from({ length: calendarData.firstDay }, (_, i) => (
+          <div key={`empty-${i}`} className="py-1"></div>
+        ))}
+        
+        {Array.from({ length: calendarData.daysInMonth }, (_, i) => {
+          const day = i + 1;
+          const isToday = day === calendarData.todayDate && 
+                         calendarData.currentMonth === calendarData.currentMonth && 
+                         calendarData.currentYear === calendarData.currentYear;
+          const isSelected = day === calendarData.selectedDay && 
+                           calendarData.currentMonth === calendarData.selectedMonth && 
+                           calendarData.currentYear === calendarData.selectedYear;
+          const dateStr = new Date(calendarData.currentYear, calendarData.currentMonth, day).toISOString().split('T')[0];
+          const hasTasks = tasksByDate[dateStr] && tasksByDate[dateStr].length > 0;
+          
+          return (
+            <button
+              key={day}
+              onClick={() => onSelectDate(dateStr)}
+              className={`py-1 px-1 text-xs rounded transition-colors relative ${
+                isSelected 
+                  ? 'bg-blue-600 text-white' 
+                  : isToday
+                    ? 'bg-blue-100 text-blue-800 font-medium'
+                    : 'hover:bg-blue-50'
+              }`}
+            >
+              {day}
+              {hasTasks && (
+                <div className={`absolute bottom-0 left-1/2 transform -translate-x-1/2 w-1 h-1 rounded-full ${
+                  isSelected ? 'bg-white' : 'bg-blue-500'
+                }`}></div>
+              )}
+            </button>
+          );
+        })}
+      </div>
     </div>
   );
 });
@@ -405,21 +572,54 @@ export default function App() {
   const { isLoggedIn, currentUserId, isLoading, login, logout } = useAuth();
   
   const [activeTab, setActiveTab] = useState('today');
-  const [selectedDate] = useState(new Date().toISOString().split('T')[0]);
+  const [selectedDate, setSelectedDate] = useState(new Date().toISOString().split('T')[0]);
   
-  // Хуки данных - используются только когда пользователь авторизован
-  const [tasksByDate, setTasksByDate] = useSupabaseStorage('tasksByDate', {}, isLoggedIn);
-  const [noDeadlineTasks, setNoDeadlineTasks] = useSupabaseStorage('noDeadlineTasks', [], isLoggedIn);
-  const [ideas, setIdeas] = useSupabaseStorage('ideas', [], isLoggedIn);
-  const [dailyTasks, setDailyTasks] = useSupabaseStorage('dailyTasks', [], isLoggedIn);
-  const [completedRegularTasks, setCompletedRegularTasks] = useSupabaseStorage('completedRegularTasks', {}, isLoggedIn);
+  const [tasksByDate, setTasksByDate] = useSupabaseStorage('tasksByDate', {
+    [new Date().toISOString().split('T')[0]]: [
+      { id: 1, text: 'Подъем', completed: true, emoji: '🌅' },
+      { id: 2, text: 'Утренняя рутина', completed: true, emoji: '☀️' },
+      { id: 3, text: 'Кардио + бассейн', completed: true, emoji: '🏊‍♂️' },
+      { id: 4, text: 'Ашваганда + витамин D', completed: false, emoji: '💊' },
+      { id: 5, text: 'Посты для Севастополя', completed: false, emoji: '🏠' },
+      { id: 6, text: 'Посты для Ростова', completed: false, emoji: '🏠' },
+      { id: 7, text: 'Проверить РСЯ', completed: false, emoji: '💻' },
+      { id: 8, text: 'Заявление — оператор персональных данных', completed: false, emoji: '📋' }
+    ]
+  });
 
-  console.log('🔄 Текущие данные:', { tasksByDate, noDeadlineTasks, ideas, dailyTasks, completedRegularTasks });
+  const [noDeadlineTasks, setNoDeadlineTasks] = useSupabaseStorage('noDeadlineTasks', [
+    { id: 101, text: 'Подготовить к запуску хотя бы один канал-афишу', emoji: '📺' },
+    { id: 102, text: 'Разобраться с РКН в Тюмени (или уточнить актуальность)', emoji: '⚙️' },
+    { id: 103, text: 'Узнать про починку байка', emoji: '🏍️' },
+    { id: 104, text: 'Записаться к стоматологу', emoji: '🦷' },
+    { id: 105, text: 'Сдать анализы (ориентир — 4 июня)', emoji: '🧪' },
+    { id: 106, text: 'Узнать про работу с самозанятыми', emoji: '💼' },
+    { id: 107, text: 'Решить, что делать с Ростовом (если не обдашешь сегодня)', emoji: '🤔' },
+    { id: 108, text: 'Запустить рассылку по агентствам (если отложено)', emoji: '📧' }
+  ]);
 
+  const [ideas, setIdeas] = useSupabaseStorage('ideas', [
+    { id: 201, text: 'Концепция афишного канала — шаблоны для постов', emoji: '💡' },
+    { id: 202, text: 'Канал по экономике — запуск (Ростов или Питер?)', emoji: '📊' }
+  ]);
+
+  const [dailyTasks, setDailyTasks] = useSupabaseStorage('dailyTasks', [
+    { id: 301, text: 'Уход за собой — борода, ногти, нос, брови', emoji: '🧔', frequency: 'weekly', days: [0] },
+    { id: 302, text: 'Заполнить бюджет', emoji: '📋', frequency: 'weekly', days: [0] },
+    { id: 303, text: 'Почистить зубы вечером', emoji: '🦷', frequency: 'daily', days: [] },
+    { id: 304, text: 'Магний + урсосан вечером', emoji: '🌙', frequency: 'daily', days: [] }
+  ]);
+
+  const [completedRegularTasks, setCompletedRegularTasks] = useSupabaseStorage('completedRegularTasks', {});
+  const [regularTasksOrder, setRegularTasksOrder] = useSupabaseStorage('regularTasksOrder', {});
+
+  const [draggedItem, setDraggedItem] = useState<any>(null);
+  const [dragOverIndex, setDragOverIndex] = useState<any>(null);
   const [newTaskText, setNewTaskText] = useState('');
   const [newTaskDate, setNewTaskDate] = useState(new Date().toISOString().split('T')[0]);
   const [newTaskFrequency, setNewTaskFrequency] = useState('daily');
   const [newTaskDays, setNewTaskDays] = useState<number[]>([]);
+  const [showCalendar, setShowCalendar] = useState(false);
 
   // Показываем загрузку
   if (isLoading) {
@@ -438,50 +638,181 @@ export default function App() {
     return <AuthForm onLogin={login} />;
   }
 
-  // Вычисляемые значения
-  const getCurrentDateTasks = () => {
-    const normalTasks = tasksByDate[selectedDate] || [];
-    const regularTasks = dailyTasks
+  // ВСЕ ОСТАЛЬНЫЕ ФУНКЦИИ ВОЗВРАЩЕНЫ
+  const getAutoEmoji = useCallback((text: string) => {
+    const lowerText = text.toLowerCase();
+    
+    if (lowerText.includes('кардио') || lowerText.includes('спорт') || lowerText.includes('бассейн') || 
+        lowerText.includes('зал') || lowerText.includes('тренировка') || lowerText.includes('бег')) {
+      return '🏃‍♂️';
+    }
+    
+    if (lowerText.includes('зуб') || lowerText.includes('стоматолог')) {
+      return '🦷';
+    }
+    
+    if (lowerText.includes('работа') || lowerText.includes('проект') || lowerText.includes('канал') || 
+        lowerText.includes('пост') || lowerText.includes('контент') || lowerText.includes('реклама')) {
+      return '💼';
+    }
+    
+    if (lowerText.includes('купить') || lowerText.includes('магазин') || lowerText.includes('покупк')) {
+      return '🛒';
+    }
+    
+    if (lowerText.includes('готовить') || lowerText.includes('еда') || lowerText.includes('кухня') || 
+        lowerText.includes('завтрак') || lowerText.includes('обед') || lowerText.includes('ужин')) {
+      return '🍳';
+    }
+    
+    if (lowerText.includes('машина') || lowerText.includes('байк') || lowerText.includes('ремонт') || 
+        lowerText.includes('сервис') || lowerText.includes('починк')) {
+      return '🔧';
+    }
+    
+    if (lowerText.includes('документ') || lowerText.includes('заявление') || lowerText.includes('бумаг') || 
+        lowerText.includes('справк') || lowerText.includes('оформ')) {
+      return '📋';
+    }
+    
+    if (lowerText.includes('врач') || lowerText.includes('анализ') || lowerText.includes('больниц') || 
+        lowerText.includes('лечение') || lowerText.includes('таблетк') || lowerText.includes('витамин') || 
+        lowerText.includes('магний') || lowerText.includes('ашваганда') || lowerText.includes('урсосан')) {
+      return '💊';
+    }
+    
+    if (lowerText.includes('деньги') || lowerText.includes('бюджет') || lowerText.includes('финанс') || 
+        lowerText.includes('зарплат') || lowerText.includes('платеж') || lowerText.includes('счет')) {
+      return '💰';
+    }
+    
+    if (lowerText.includes('убор') || lowerText.includes('чист') || lowerText.includes('мыть') || 
+        lowerText.includes('порядок')) {
+      return '🧹';
+    }
+    
+    if (lowerText.includes('звонок') || lowerText.includes('звонить') || lowerText.includes('связать') || 
+        lowerText.includes('позвонить') || lowerText.includes('телефон')) {
+      return '📞';
+    }
+    
+    if (lowerText.includes('дом') || lowerText.includes('квартир') || lowerText.includes('ремонт дома') || 
+        lowerText.includes('интерьер')) {
+      return '🏠';
+    }
+    
+    if (lowerText.includes('подъем') || lowerText.includes('встать') || lowerText.includes('утр')) {
+      return '🌅';
+    }
+    
+    if (lowerText.includes('вечер') || lowerText.includes('ночь') || lowerText.includes('сон')) {
+      return '🌙';
+    }
+    
+    if (lowerText.includes('идея') || lowerText.includes('концепция') || lowerText.includes('план') || 
+        lowerText.includes('стратегия') || lowerText.includes('креатив')) {
+      return '💡';
+    }
+    
+    if (lowerText.includes('учить') || lowerText.includes('изучать') || lowerText.includes('курс') || 
+        lowerText.includes('книга') || lowerText.includes('читать')) {
+      return '📚';
+    }
+    
+    if (lowerText.includes('компьютер') || lowerText.includes('сайт') || lowerText.includes('код') || 
+        lowerText.includes('программ') || lowerText.includes('рся') || lowerText.includes('реклам')) {
+      return '💻';
+    }
+    
+    return '📝';
+  }, []);
+
+  const getTodayRegularTasks = useCallback((dateStr: string) => {
+    const date = new Date(dateStr);
+    const dayOfWeek = date.getDay();
+    
+    const applicableTasks = dailyTasks
       .filter((task: any) => {
-        const date = new Date(selectedDate);
-        const dayOfWeek = date.getDay();
         if (task.frequency === 'daily') return true;
         if (task.frequency === 'weekly') return task.days.includes(dayOfWeek);
         return false;
       })
       .map((task: any) => ({
         ...task,
-        completed: completedRegularTasks[selectedDate]?.includes(task.id) || false,
+        completed: completedRegularTasks[dateStr]?.includes(task.id) || false,
         isRegular: true
       }));
-    
-    return [...regularTasks, ...normalTasks];
-  };
 
-  const currentDateTasks = getCurrentDateTasks();
-  
-  const tabs = [
-    { id: 'today', label: 'Сегодня', icon: Calendar, count: currentDateTasks.filter((t: any) => !t.completed).length },
+    const savedOrder = regularTasksOrder[dateStr];
+    if (savedOrder && savedOrder.length > 0) {
+      const orderedTasks: any[] = [];
+      savedOrder.forEach((taskId: number) => {
+        const task = applicableTasks.find((t: any) => t.id === taskId);
+        if (task) orderedTasks.push(task);
+      });
+      applicableTasks.forEach((task: any) => {
+        if (!savedOrder.includes(task.id)) {
+          orderedTasks.push(task);
+        }
+      });
+      return orderedTasks;
+    }
+    
+    return applicableTasks;
+  }, [dailyTasks, completedRegularTasks, regularTasksOrder]);
+
+  const getCurrentDateTasks = useMemo(() => {
+    const regularTasks = getTodayRegularTasks(selectedDate);
+    const normalTasks = tasksByDate[selectedDate] || [];
+    return [...regularTasks, ...normalTasks];
+  }, [tasksByDate, selectedDate, getTodayRegularTasks]);
+
+  const tabs = useMemo(() => [
+    { id: 'today', label: 'Сегодня', icon: Calendar, count: getCurrentDateTasks.filter((t: any) => !t.completed).length },
     { id: 'noDeadline', label: 'Без срока', icon: Clock, count: noDeadlineTasks.length },
     { id: 'ideas', label: 'Идеи', icon: Lightbulb, count: ideas.length },
     { id: 'regular', label: 'Регулярные', icon: RefreshCw, count: dailyTasks.length }
-  ];
+  ], [getCurrentDateTasks, noDeadlineTasks.length, ideas.length, dailyTasks.length]);
 
-  const completedToday = currentDateTasks.filter((t: any) => t.completed).length;
-  const totalToday = currentDateTasks.length;
+  const { completedToday, totalToday } = useMemo(() => {
+    const tasks = getCurrentDateTasks;
+    return {
+      completedToday: tasks.filter((t: any) => t.completed).length,
+      totalToday: tasks.length
+    };
+  }, [getCurrentDateTasks]);
 
-  // Функции
-  const getAutoEmoji = (text: string) => {
-    const lowerText = text.toLowerCase();
-    if (lowerText.includes('кардио') || lowerText.includes('спорт')) return '🏃‍♂️';
-    if (lowerText.includes('зуб')) return '🦷';
-    if (lowerText.includes('работа') || lowerText.includes('проект')) return '💼';
-    return '📝';
-  };
+  const getCurrentDate = useCallback(() => {
+    const date = new Date(selectedDate);
+    return date.toLocaleDateString('ru-RU', { 
+      weekday: 'long', 
+      year: 'numeric', 
+      month: 'long', 
+      day: 'numeric' 
+    });
+  }, [selectedDate]);
 
-  const toggleTask = (taskId: number, category: string) => {
+  const formatDateShort = useCallback((dateStr: string) => {
+    const date = new Date(dateStr);
+    const today = new Date().toISOString().split('T')[0];
+    const tomorrow = new Date(Date.now() + 24 * 60 * 60 * 1000).toISOString().split('T')[0];
+    
+    if (dateStr === today) return 'Сегодня';
+    if (dateStr === tomorrow) return 'Завтра';
+    
+    return date.toLocaleDateString('ru-RU', { day: 'numeric', month: 'short' });
+  }, []);
+
+  const changeDate = useCallback((direction: number) => {
+    const currentDate = new Date(selectedDate);
+    const newDate = new Date(currentDate);
+    newDate.setDate(currentDate.getDate() + direction);
+    setSelectedDate(newDate.toISOString().split('T')[0]);
+  }, [selectedDate]);
+
+  const toggleTask = useCallback((taskId: number, category: string) => {
     if (category === 'today') {
-      const task = currentDateTasks.find((t: any) => t.id === taskId);
+      const task = getCurrentDateTasks.find((t: any) => t.id === taskId);
       
       if (task && task.isRegular) {
         setCompletedRegularTasks((prev: any) => {
@@ -508,11 +839,11 @@ export default function App() {
         task.id === taskId ? { ...task, completed: !task.completed } : task
       ));
     }
-  };
+  }, [selectedDate, getCurrentDateTasks, setTasksByDate, setCompletedRegularTasks, setNoDeadlineTasks]);
 
-  const deleteTask = (taskId: number, category: string) => {
+  const deleteTask = useCallback((taskId: number, category: string) => {
     if (category === 'today') {
-      const task = currentDateTasks.find((t: any) => t.id === taskId);
+      const task = getCurrentDateTasks.find((t: any) => t.id === taskId);
       
       if (task && task.isRegular) {
         alert('Регулярные задачи можно удалить только во вкладке "Регулярные"');
@@ -530,12 +861,10 @@ export default function App() {
     } else if (category === 'regular') {
       setDailyTasks((prev: any) => prev.filter((task: any) => task.id !== taskId));
     }
-  };
+  }, [selectedDate, getCurrentDateTasks, setTasksByDate, setNoDeadlineTasks, setIdeas, setDailyTasks]);
 
-  const addTask = (category: string) => {
+  const addTask = useCallback((category: string) => {
     if (!newTaskText.trim()) return;
-    
-    console.log(`➕ Добавляем задачу в ${category}:`, newTaskText.trim());
     
     const newTask: any = {
       id: Date.now(),
@@ -546,70 +875,107 @@ export default function App() {
 
     if (category === 'today') {
       const targetDate = newTaskDate;
-      console.log(`📅 Добавляем задачу на дату: ${targetDate}`);
-      console.log(`📋 Текущие задачи для ${targetDate}:`, tasksByDate[targetDate]);
-      
-      setTasksByDate((prev: any) => {
-        const newData = {
-          ...prev,
-          [targetDate]: [...(prev[targetDate] || []), newTask]
-        };
-        console.log(`💾 Новые данные tasksByDate:`, newData);
-        return newData;
-      });
+      setTasksByDate((prev: any) => ({
+        ...prev,
+        [targetDate]: [...(prev[targetDate] || []), newTask]
+      }));
     } else if (category === 'regular') {
       newTask.frequency = newTaskFrequency;
       newTask.days = newTaskDays;
-      console.log(`🔄 Добавляем регулярную задачу:`, newTask);
-      
-      setDailyTasks((prev: any) => {
-        const newData = [...prev, newTask];
-        console.log(`💾 Новые dailyTasks:`, newData);
-        return newData;
-      });
+      setDailyTasks((prev: any) => [...prev, newTask]);
     } else if (category === 'noDeadline') {
-      console.log(`⏰ Добавляем задачу без срока:`, newTask);
-      
-      setNoDeadlineTasks((prev: any) => {
-        const newData = [...prev, newTask];
-        console.log(`💾 Новые noDeadlineTasks:`, newData);
-        return newData;
-      });
+      setNoDeadlineTasks((prev: any) => [...prev, newTask]);
     } else if (category === 'ideas') {
-      console.log(`💡 Добавляем идею:`, newTask);
-      
-      setIdeas((prev: any) => {
-        const newData = [...prev, newTask];
-        console.log(`💾 Новые ideas:`, newData);
-        return newData;
-      });
+      setIdeas((prev: any) => [...prev, newTask]);
     }
 
-    // Сброс формы
     setNewTaskText('');
     setNewTaskDate(new Date().toISOString().split('T')[0]);
     setNewTaskFrequency('daily');
     setNewTaskDays([]);
+  }, [newTaskText, newTaskDate, newTaskFrequency, newTaskDays, getAutoEmoji, setTasksByDate, setDailyTasks, setNoDeadlineTasks, setIdeas]);
+
+  const handleDragStart = useCallback((e: any, task: any, index: number, type: string) => {
+    setDraggedItem({ task, index, type });
+    e.dataTransfer.effectAllowed = 'move';
+  }, []);
+
+  const handleDragOver = useCallback((e: any, index: number, type: string) => {
+    e.preventDefault();
+    e.dataTransfer.dropEffect = 'move';
+    setDragOverIndex({ index, type });
+  }, []);
+
+  const handleDragLeave = useCallback(() => {
+    setDragOverIndex(null);
+  }, []);
+
+  const handleDrop = useCallback((e: any, dropIndex: number, dropType: string) => {
+    e.preventDefault();
+    setDragOverIndex(null);
     
-    console.log(`✅ Задача добавлена, форма очищена`);
-  };
+    if (!draggedItem || draggedItem.type !== dropType) return;
+    
+    const dragIndex = draggedItem.index;
+    if (dragIndex === dropIndex) return;
+
+    const reorderArray = (array: any[]) => {
+      const newArray = [...array];
+      const [removed] = newArray.splice(dragIndex, 1);
+      newArray.splice(dropIndex, 0, removed);
+      return newArray;
+    };
+
+    if (dropType === 'regular') {
+      const regularTasks = getTodayRegularTasks(selectedDate);
+      const reorderedRegularTasks = reorderArray(regularTasks);
+      const newOrder = reorderedRegularTasks.map((task: any) => task.id);
+      
+      setRegularTasksOrder((prev: any) => ({
+        ...prev,
+        [selectedDate]: newOrder
+      }));
+    } else if (dropType === 'normal') {
+      if (activeTab === 'today') {
+        const normalTasks = (tasksByDate[selectedDate] || []).filter((t: any) => !t.isRegular);
+        const reorderedNormalTasks = reorderArray(normalTasks);
+        setTasksByDate((prev: any) => ({
+          ...prev,
+          [selectedDate]: reorderedNormalTasks
+        }));
+      } else if (activeTab === 'noDeadline') {
+        setNoDeadlineTasks(reorderArray(noDeadlineTasks));
+      } else if (activeTab === 'ideas') {
+        setIdeas(reorderArray(ideas));
+      } else if (activeTab === 'regular') {
+        setDailyTasks(reorderArray(dailyTasks));
+      }
+    }
+
+    setDraggedItem(null);
+  }, [draggedItem, selectedDate, tasksByDate, noDeadlineTasks, ideas, dailyTasks, activeTab, getTodayRegularTasks, setRegularTasksOrder, setTasksByDate, setNoDeadlineTasks, setIdeas, setDailyTasks]);
+
+  const handleToggleTask = useCallback((category: string) => (taskId: number) => {
+    toggleTask(taskId, category);
+  }, [toggleTask]);
+
+  const handleDeleteTask = useCallback((category: string) => (taskId: number) => {
+    deleteTask(taskId, category);
+  }, [deleteTask]);
+
+  const handleSelectDate = useCallback((dateStr: string) => {
+    setSelectedDate(dateStr);
+  }, []);
 
   return (
     <div className="max-w-4xl mx-auto p-6 bg-gradient-to-br from-slate-50 to-blue-50 min-h-screen">
       <div className="bg-white rounded-xl shadow-lg overflow-hidden">
-        {/* Заголовок */}
+        {/* Заголовок с пользователем */}
         <div className="bg-slate-800 text-white p-6">
           <div className="flex justify-between items-start mb-4">
             <div>
               <h1 className="text-2xl font-bold mb-2">📋 Трекер задач</h1>
-              <p className="text-slate-300">
-                {new Date(selectedDate).toLocaleDateString('ru-RU', { 
-                  weekday: 'long', 
-                  year: 'numeric', 
-                  month: 'long', 
-                  day: 'numeric' 
-                })}
-              </p>
+              <p className="text-slate-300">{getCurrentDate()}</p>
             </div>
             <div className="flex items-center gap-3">
               <div className="text-right">
@@ -676,19 +1042,112 @@ export default function App() {
 
         {/* Контент */}
         <div className="p-6">
-          {activeTab === 'today' && (
+          {activeTab === 'regular' && (
             <div>
               <div className="flex items-center gap-2 mb-4">
-                <Calendar className="w-5 h-5 text-blue-600" />
-                <h2 className="text-xl font-semibold">Задачи на сегодня</h2>
+                <RefreshCw className="w-5 h-5 text-green-600" />
+                <h2 className="text-xl font-semibold">Регулярные задачи</h2>
+              </div>
+              <div className="bg-blue-50 border border-blue-200 rounded-lg p-3 mb-4">
+                <p className="text-blue-800 text-sm">
+                  ℹ️ Здесь настраиваются регулярные задачи. Они автоматически появляются во вкладке "Сегодня" согласно расписанию.
+                </p>
+              </div>
+              <TaskList 
+                tasks={dailyTasks} 
+                category="regular" 
+                canToggle={false}
+                onToggleTask={handleToggleTask('regular')}
+                onDeleteTask={handleDeleteTask('regular')}
+                onDragStart={handleDragStart}
+                onDragOver={handleDragOver}
+                onDragLeave={handleDragLeave}
+                onDrop={handleDrop}
+                dragOverIndex={dragOverIndex}
+              />
+              <div className="mt-6">
+                <AddTaskForm 
+                  category="regular"
+                  onAddTask={() => addTask('regular')}
+                  newTaskText={newTaskText}
+                  setNewTaskText={setNewTaskText}
+                  newTaskDate={newTaskDate}
+                  setNewTaskDate={setNewTaskDate}
+                  newTaskFrequency={newTaskFrequency}
+                  setNewTaskFrequency={setNewTaskFrequency}
+                  newTaskDays={newTaskDays}
+                  setNewTaskDays={setNewTaskDays}
+                />
+              </div>
+            </div>
+          )}
+
+          {activeTab === 'today' && (
+            <div>
+              <div className="flex items-center justify-between mb-4">
+                <div className="flex items-center gap-2">
+                  <Calendar className="w-5 h-5 text-blue-600" />
+                  <h2 className="text-xl font-semibold">Задачи</h2>
+                </div>
+                
+                <div className="flex items-center gap-3">
+                  <button
+                    onClick={() => setShowCalendar(!showCalendar)}
+                    className={`px-3 py-2 rounded-lg transition-colors text-sm ${
+                      showCalendar 
+                        ? 'bg-blue-600 text-white' 
+                        : 'bg-gray-100 text-gray-600 hover:bg-gray-200'
+                    }`}
+                  >
+                    📅 Календарь
+                  </button>
+                  
+                  <button
+                    onClick={() => changeDate(-1)}
+                    className="p-2 hover:bg-gray-100 rounded-lg transition-colors"
+                  >
+                    <ChevronLeft className="w-4 h-4" />
+                  </button>
+                  <div className="text-center min-w-[120px]">
+                    <div className="font-medium">{formatDateShort(selectedDate)}</div>
+                    <div className="text-xs text-gray-500">{getCurrentDate().split(',')[0]}</div>
+                  </div>
+                  <button
+                    onClick={() => changeDate(1)}
+                    className="p-2 hover:bg-gray-100 rounded-lg transition-colors"
+                  >
+                    <ChevronRight className="w-4 h-4" />
+                  </button>
+                </div>
               </div>
               
-              <TaskList 
-                tasks={currentDateTasks} 
-                onToggleTask={(id: number) => toggleTask(id, 'today')}
-                onDeleteTask={(id: number) => deleteTask(id, 'today')}
-              />
+              {showCalendar && (
+                <MiniCalendar 
+                  selectedDate={selectedDate}
+                  tasksByDate={tasksByDate}
+                  onSelectDate={handleSelectDate}
+                />
+              )}
               
+              {getCurrentDateTasks.some((t: any) => t.isRegular) && (
+                <div className="bg-blue-50 border border-blue-200 rounded-lg p-3 mb-4">
+                  <p className="text-blue-800 text-sm">
+                    🔄 Синие задачи — регулярные, подтянулись автоматически. Их можно перетаскивать между собой для изменения порядка. Настроить можно во вкладке "Регулярные".
+                  </p>
+                </div>
+              )}
+              
+              <TaskList 
+                tasks={getCurrentDateTasks} 
+                category="today" 
+                onToggleTask={handleToggleTask('today')}
+                onDeleteTask={handleDeleteTask('today')}
+                onDragStart={handleDragStart}
+                onDragOver={handleDragOver}
+                onDragLeave={handleDragLeave}
+                onDrop={handleDrop}
+                dragOverIndex={dragOverIndex}
+              />
               <div className="mt-6">
                 <AddTaskForm 
                   category="today"
@@ -712,13 +1171,17 @@ export default function App() {
                 <Clock className="w-5 h-5 text-orange-600" />
                 <h2 className="text-xl font-semibold">Задачи без срока</h2>
               </div>
-              
               <TaskList 
                 tasks={noDeadlineTasks} 
-                onToggleTask={(id: number) => toggleTask(id, 'noDeadline')}
-                onDeleteTask={(id: number) => deleteTask(id, 'noDeadline')}
+                category="noDeadline" 
+                onToggleTask={handleToggleTask('noDeadline')}
+                onDeleteTask={handleDeleteTask('noDeadline')}
+                onDragStart={handleDragStart}
+                onDragOver={handleDragOver}
+                onDragLeave={handleDragLeave}
+                onDrop={handleDrop}
+                dragOverIndex={dragOverIndex}
               />
-              
               <div className="mt-6">
                 <AddTaskForm 
                   category="noDeadline"
@@ -740,57 +1203,24 @@ export default function App() {
             <div>
               <div className="flex items-center gap-2 mb-4">
                 <Lightbulb className="w-5 h-5 text-yellow-600" />
-                <h2 className="text-xl font-semibold">Идеи</h2>
+                <h2 className="text-xl font-semibold">Идеи / В процессе</h2>
               </div>
-              
               <TaskList 
                 tasks={ideas} 
-                canToggle={false}
-                onToggleTask={(id: number) => toggleTask(id, 'ideas')}
-                onDeleteTask={(id: number) => deleteTask(id, 'ideas')}
+                category="ideas" 
+                canToggle={false} 
+                onToggleTask={handleToggleTask('ideas')}
+                onDeleteTask={handleDeleteTask('ideas')}
+                onDragStart={handleDragStart}
+                onDragOver={handleDragOver}
+                onDragLeave={handleDragLeave}
+                onDrop={handleDrop}
+                dragOverIndex={dragOverIndex}
               />
-              
               <div className="mt-6">
                 <AddTaskForm 
                   category="ideas"
                   onAddTask={() => addTask('ideas')}
-                  newTaskText={newTaskText}
-                  setNewTaskText={setNewTaskText}
-                  newTaskDate={newTaskDate}
-                  setNewTaskDate={setNewTaskDate}
-                  newTaskFrequency={newTaskFrequency}
-                  setNewTaskFrequency={setNewTaskFrequency}
-                  newTaskDays={newTaskDays}
-                  setNewTaskDays={setNewTaskDays}
-                />
-              </div>
-            </div>
-          )}
-
-          {activeTab === 'regular' && (
-            <div>
-              <div className="flex items-center gap-2 mb-4">
-                <RefreshCw className="w-5 h-5 text-green-600" />
-                <h2 className="text-xl font-semibold">Регулярные задачи</h2>
-              </div>
-              
-              <div className="bg-blue-50 border border-blue-200 rounded-lg p-3 mb-4">
-                <p className="text-blue-800 text-sm">
-                  ℹ️ Регулярные задачи автоматически появляются во вкладке "Сегодня" согласно расписанию.
-                </p>
-              </div>
-              
-              <TaskList 
-                tasks={dailyTasks} 
-                canToggle={false}
-                onToggleTask={(id: number) => toggleTask(id, 'regular')}
-                onDeleteTask={(id: number) => deleteTask(id, 'regular')}
-              />
-              
-              <div className="mt-6">
-                <AddTaskForm 
-                  category="regular"
-                  onAddTask={() => addTask('regular')}
                   newTaskText={newTaskText}
                   setNewTaskText={setNewTaskText}
                   newTaskDate={newTaskDate}
