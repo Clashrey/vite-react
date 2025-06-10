@@ -137,7 +137,7 @@ const useAuth = () => {
     };
 
     checkAuth();
-  }, []);
+  }, []); // Убрали loadUserData из dependencies
 
   const login = useCallback((userId: string) => {
     setCurrentUserId(userId);
@@ -154,12 +154,18 @@ const useAuth = () => {
   return { isLoggedIn, currentUserId, isLoading, login, logout };
 };
 
-// Хук для работы с Supabase
-const useSupabaseStorage = (key: string, defaultValue: any) => {
+// Хук для работы с Supabase - ИСПРАВЛЕННЫЙ
+const useSupabaseStorage = (key: string, defaultValue: any, isAuthorized: boolean) => {
   const [value, setValue] = useState(defaultValue);
   const [isLoaded, setIsLoaded] = useState(false);
 
   useEffect(() => {
+    if (!isAuthorized) {
+      setValue(defaultValue);
+      setIsLoaded(true);
+      return;
+    }
+
     const loadData = async () => {
       try {
         const userData = await loadUserData();
@@ -174,9 +180,14 @@ const useSupabaseStorage = (key: string, defaultValue: any) => {
     };
     
     loadData();
-  }, [key]);
+  }, [key, isAuthorized]);
 
   const setStoredValue = useCallback(async (newValue: any) => {
+    if (!isAuthorized) {
+      setValue(newValue);
+      return;
+    }
+
     try {
       setValue((currentValue: any) => {
         const valueToStore = typeof newValue === 'function' ? newValue(currentValue) : newValue;
@@ -197,31 +208,31 @@ const useSupabaseStorage = (key: string, defaultValue: any) => {
     } catch (error) {
       console.error(`Ошибка установки ${key}:`, error);
     }
-  }, [key]);
+  }, [key, isAuthorized]);
 
   return [value, setStoredValue, isLoaded];
 };
 
-// Компоненты форм и списков
+// Компоненты форм и списков - упрощены
 const AddTaskForm = React.memo(({ category, onAddTask, newTaskText, setNewTaskText, newTaskDate, setNewTaskDate, newTaskFrequency, setNewTaskFrequency, newTaskDays, setNewTaskDays }: any) => {
-  const handleKeyDown = useCallback((e: any) => {
+  const handleKeyDown = (e: any) => {
     if (e.key === 'Enter') {
       e.preventDefault();
       onAddTask();
     }
-  }, [onAddTask]);
+  };
 
-  const handleTextChange = useCallback((e: any) => {
+  const handleTextChange = (e: any) => {
     setNewTaskText(e.target.value);
-  }, [setNewTaskText]);
+  };
 
-  const toggleDay = useCallback((dayIndex: number) => {
+  const toggleDay = (dayIndex: number) => {
     setNewTaskDays((prev: number[]) => 
       prev.includes(dayIndex) 
         ? prev.filter(d => d !== dayIndex)
         : [...prev, dayIndex].sort()
     );
-  }, [setNewTaskDays]);
+  };
 
   const formatDateShort = (dateStr: string) => {
     const date = new Date(dateStr);
@@ -311,23 +322,17 @@ const AddTaskForm = React.memo(({ category, onAddTask, newTaskText, setNewTaskTe
 });
 
 const TaskList = React.memo(({ tasks, category, showCompleted = true, canToggle = true, onToggleTask, onDeleteTask, onDragStart, onDragOver, onDragLeave, onDrop, dragOverIndex }: any) => {
-  const { activeTasks, completedTasks } = useMemo(() => {
-    const completed = tasks.filter((task: any) => task.completed);
-    const active = showCompleted ? tasks : tasks.filter((task: any) => !task.completed);
-    return { activeTasks: active, completedTasks: completed };
-  }, [tasks, showCompleted]);
+  const completed = tasks.filter((task: any) => task.completed);
+  const active = showCompleted ? tasks : tasks.filter((task: any) => !task.completed);
+  const displayTasks = showCompleted ? active : active.filter((task: any) => !task.completed);
 
-  const displayTasks = showCompleted ? activeTasks : activeTasks.filter((task: any) => !task.completed);
-
-  const { regularTasks, normalTasks } = useMemo(() => {
-    if (category === 'today') {
-      return {
-        regularTasks: displayTasks.filter((t: any) => t.isRegular),
-        normalTasks: displayTasks.filter((t: any) => !t.isRegular)
-      };
-    }
-    return { regularTasks: [], normalTasks: displayTasks };
-  }, [displayTasks, category]);
+  let regularTasks: any[] = [];
+  let normalTasks = displayTasks;
+  
+  if (category === 'today') {
+    regularTasks = displayTasks.filter((t: any) => t.isRegular);
+    normalTasks = displayTasks.filter((t: any) => !t.isRegular);
+  }
 
   return (
     <div className="space-y-2">
@@ -485,9 +490,9 @@ const TaskList = React.memo(({ tasks, category, showCompleted = true, canToggle 
         );
       })}
       
-      {showCompleted && completedTasks.length > 0 && displayTasks.some((t: any) => !t.completed) && (
+      {showCompleted && completed.length > 0 && displayTasks.some((t: any) => !t.completed) && (
         <div className="border-t pt-3 mt-4">
-          <p className="text-sm text-gray-500 mb-2">✅ Выполнено ({completedTasks.length})</p>
+          <p className="text-sm text-gray-500 mb-2">✅ Выполнено ({completed.length})</p>
         </div>
       )}
     </div>
@@ -495,29 +500,16 @@ const TaskList = React.memo(({ tasks, category, showCompleted = true, canToggle 
 });
 
 const MiniCalendar = React.memo(({ selectedDate, tasksByDate, onSelectDate }: any) => {
-  const calendarData = useMemo(() => {
-    const today = new Date();
-    const currentMonth = today.getMonth();
-    const currentYear = today.getFullYear();
-    const firstDay = new Date(currentYear, currentMonth, 1).getDay();
-    const daysInMonth = new Date(currentYear, currentMonth + 1, 0).getDate();
-    const todayDate = today.getDate();
-    const selectedDateObj = new Date(selectedDate);
-    const selectedDay = selectedDateObj.getDate();
-    const selectedMonth = selectedDateObj.getMonth();
-    const selectedYear = selectedDateObj.getFullYear();
-    
-    return {
-      firstDay,
-      daysInMonth,
-      todayDate,
-      selectedDay,
-      selectedMonth,
-      selectedYear,
-      currentMonth,
-      currentYear
-    };
-  }, [selectedDate]);
+  const today = new Date();
+  const currentMonth = today.getMonth();
+  const currentYear = today.getFullYear();
+  const firstDay = new Date(currentYear, currentMonth, 1).getDay();
+  const daysInMonth = new Date(currentYear, currentMonth + 1, 0).getDate();
+  const todayDate = today.getDate();
+  const selectedDateObj = new Date(selectedDate);
+  const selectedDay = selectedDateObj.getDate();
+  const selectedMonth = selectedDateObj.getMonth();
+  const selectedYear = selectedDateObj.getFullYear();
 
   return (
     <div className="bg-gradient-to-r from-blue-50 to-indigo-50 rounded-lg p-4 mb-6">
@@ -585,7 +577,7 @@ export default function App() {
       { id: 7, text: 'Проверить РСЯ', completed: false, emoji: '💻' },
       { id: 8, text: 'Заявление — оператор персональных данных', completed: false, emoji: '📋' }
     ]
-  });
+  }, isLoggedIn);
 
   const [noDeadlineTasks, setNoDeadlineTasks] = useSupabaseStorage('noDeadlineTasks', [
     { id: 101, text: 'Подготовить к запуску хотя бы один канал-афишу', emoji: '📺' },
@@ -596,22 +588,22 @@ export default function App() {
     { id: 106, text: 'Узнать про работу с самозанятыми', emoji: '💼' },
     { id: 107, text: 'Решить, что делать с Ростовом (если не обдашешь сегодня)', emoji: '🤔' },
     { id: 108, text: 'Запустить рассылку по агентствам (если отложено)', emoji: '📧' }
-  ]);
+  ], isLoggedIn);
 
   const [ideas, setIdeas] = useSupabaseStorage('ideas', [
     { id: 201, text: 'Концепция афишного канала — шаблоны для постов', emoji: '💡' },
     { id: 202, text: 'Канал по экономике — запуск (Ростов или Питер?)', emoji: '📊' }
-  ]);
+  ], isLoggedIn);
 
   const [dailyTasks, setDailyTasks] = useSupabaseStorage('dailyTasks', [
     { id: 301, text: 'Уход за собой — борода, ногти, нос, брови', emoji: '🧔', frequency: 'weekly', days: [0] },
     { id: 302, text: 'Заполнить бюджет', emoji: '📋', frequency: 'weekly', days: [0] },
     { id: 303, text: 'Почистить зубы вечером', emoji: '🦷', frequency: 'daily', days: [] },
     { id: 304, text: 'Магний + урсосан вечером', emoji: '🌙', frequency: 'daily', days: [] }
-  ]);
+  ], isLoggedIn);
 
-  const [completedRegularTasks, setCompletedRegularTasks] = useSupabaseStorage('completedRegularTasks', {});
-  const [regularTasksOrder, setRegularTasksOrder] = useSupabaseStorage('regularTasksOrder', {});
+  const [completedRegularTasks, setCompletedRegularTasks] = useSupabaseStorage('completedRegularTasks', {}, isLoggedIn);
+  const [regularTasksOrder, setRegularTasksOrder] = useSupabaseStorage('regularTasksOrder', {}, isLoggedIn);
 
   const [draggedItem, setDraggedItem] = useState<any>(null);
   const [dragOverIndex, setDragOverIndex] = useState<any>(null);
@@ -638,8 +630,61 @@ export default function App() {
     return <AuthForm onLogin={login} />;
   }
 
-  // ВСЕ ОСТАЛЬНЫЕ ФУНКЦИИ ВОЗВРАЩЕНЫ
-  const getAutoEmoji = useCallback((text: string) => {
+  // Вычисляемые значения - упрощено без useMemo
+  const getTodayRegularTasks = (dateStr: string) => {
+    const date = new Date(dateStr);
+    const dayOfWeek = date.getDay();
+    
+    const applicableTasks = dailyTasks
+      .filter((task: any) => {
+        if (task.frequency === 'daily') return true;
+        if (task.frequency === 'weekly') return task.days.includes(dayOfWeek);
+        return false;
+      })
+      .map((task: any) => ({
+        ...task,
+        completed: completedRegularTasks[dateStr]?.includes(task.id) || false,
+        isRegular: true
+      }));
+
+    const savedOrder = regularTasksOrder[dateStr];
+    if (savedOrder && savedOrder.length > 0) {
+      const orderedTasks: any[] = [];
+      savedOrder.forEach((taskId: number) => {
+        const task = applicableTasks.find((t: any) => t.id === taskId);
+        if (task) orderedTasks.push(task);
+      });
+      applicableTasks.forEach((task: any) => {
+        if (!savedOrder.includes(task.id)) {
+          orderedTasks.push(task);
+        }
+      });
+      return orderedTasks;
+    }
+    
+    return applicableTasks;
+  };
+
+  const getCurrentDateTasks = () => {
+    const regularTasks = getTodayRegularTasks(selectedDate);
+    const normalTasks = tasksByDate[selectedDate] || [];
+    return [...regularTasks, ...normalTasks];
+  };
+
+  const currentDateTasks = getCurrentDateTasks();
+  
+  const tabs = [
+    { id: 'today', label: 'Сегодня', icon: Calendar, count: currentDateTasks.filter((t: any) => !t.completed).length },
+    { id: 'noDeadline', label: 'Без срока', icon: Clock, count: noDeadlineTasks.length },
+    { id: 'ideas', label: 'Идеи', icon: Lightbulb, count: ideas.length },
+    { id: 'regular', label: 'Регулярные', icon: RefreshCw, count: dailyTasks.length }
+  ];
+
+  const completedToday = currentDateTasks.filter((t: any) => t.completed).length;
+  const totalToday = currentDateTasks.length;
+
+  // Функции - упрощены без useCallback
+  const getAutoEmoji = (text: string) => {
     const lowerText = text.toLowerCase();
     
     if (lowerText.includes('кардио') || lowerText.includes('спорт') || lowerText.includes('бассейн') || 
@@ -725,64 +770,9 @@ export default function App() {
     }
     
     return '📝';
-  }, []);
+  };
 
-  const getTodayRegularTasks = useCallback((dateStr: string) => {
-    const date = new Date(dateStr);
-    const dayOfWeek = date.getDay();
-    
-    const applicableTasks = dailyTasks
-      .filter((task: any) => {
-        if (task.frequency === 'daily') return true;
-        if (task.frequency === 'weekly') return task.days.includes(dayOfWeek);
-        return false;
-      })
-      .map((task: any) => ({
-        ...task,
-        completed: completedRegularTasks[dateStr]?.includes(task.id) || false,
-        isRegular: true
-      }));
-
-    const savedOrder = regularTasksOrder[dateStr];
-    if (savedOrder && savedOrder.length > 0) {
-      const orderedTasks: any[] = [];
-      savedOrder.forEach((taskId: number) => {
-        const task = applicableTasks.find((t: any) => t.id === taskId);
-        if (task) orderedTasks.push(task);
-      });
-      applicableTasks.forEach((task: any) => {
-        if (!savedOrder.includes(task.id)) {
-          orderedTasks.push(task);
-        }
-      });
-      return orderedTasks;
-    }
-    
-    return applicableTasks;
-  }, [dailyTasks, completedRegularTasks, regularTasksOrder]);
-
-  const getCurrentDateTasks = useMemo(() => {
-    const regularTasks = getTodayRegularTasks(selectedDate);
-    const normalTasks = tasksByDate[selectedDate] || [];
-    return [...regularTasks, ...normalTasks];
-  }, [tasksByDate, selectedDate, getTodayRegularTasks]);
-
-  const tabs = useMemo(() => [
-    { id: 'today', label: 'Сегодня', icon: Calendar, count: getCurrentDateTasks.filter((t: any) => !t.completed).length },
-    { id: 'noDeadline', label: 'Без срока', icon: Clock, count: noDeadlineTasks.length },
-    { id: 'ideas', label: 'Идеи', icon: Lightbulb, count: ideas.length },
-    { id: 'regular', label: 'Регулярные', icon: RefreshCw, count: dailyTasks.length }
-  ], [getCurrentDateTasks, noDeadlineTasks.length, ideas.length, dailyTasks.length]);
-
-  const { completedToday, totalToday } = useMemo(() => {
-    const tasks = getCurrentDateTasks;
-    return {
-      completedToday: tasks.filter((t: any) => t.completed).length,
-      totalToday: tasks.length
-    };
-  }, [getCurrentDateTasks]);
-
-  const getCurrentDate = useCallback(() => {
+  const getCurrentDate = () => {
     const date = new Date(selectedDate);
     return date.toLocaleDateString('ru-RU', { 
       weekday: 'long', 
@@ -790,9 +780,9 @@ export default function App() {
       month: 'long', 
       day: 'numeric' 
     });
-  }, [selectedDate]);
+  };
 
-  const formatDateShort = useCallback((dateStr: string) => {
+  const formatDateShort = (dateStr: string) => {
     const date = new Date(dateStr);
     const today = new Date().toISOString().split('T')[0];
     const tomorrow = new Date(Date.now() + 24 * 60 * 60 * 1000).toISOString().split('T')[0];
@@ -801,18 +791,18 @@ export default function App() {
     if (dateStr === tomorrow) return 'Завтра';
     
     return date.toLocaleDateString('ru-RU', { day: 'numeric', month: 'short' });
-  }, []);
+  };
 
-  const changeDate = useCallback((direction: number) => {
+  const changeDate = (direction: number) => {
     const currentDate = new Date(selectedDate);
     const newDate = new Date(currentDate);
     newDate.setDate(currentDate.getDate() + direction);
     setSelectedDate(newDate.toISOString().split('T')[0]);
-  }, [selectedDate]);
+  };
 
-  const toggleTask = useCallback((taskId: number, category: string) => {
+  const toggleTask = (taskId: number, category: string) => {
     if (category === 'today') {
-      const task = getCurrentDateTasks.find((t: any) => t.id === taskId);
+      const task = currentDateTasks.find((t: any) => t.id === taskId);
       
       if (task && task.isRegular) {
         setCompletedRegularTasks((prev: any) => {
@@ -839,11 +829,11 @@ export default function App() {
         task.id === taskId ? { ...task, completed: !task.completed } : task
       ));
     }
-  }, [selectedDate, getCurrentDateTasks, setTasksByDate, setCompletedRegularTasks, setNoDeadlineTasks]);
+  };
 
-  const deleteTask = useCallback((taskId: number, category: string) => {
+  const deleteTask = (taskId: number, category: string) => {
     if (category === 'today') {
-      const task = getCurrentDateTasks.find((t: any) => t.id === taskId);
+      const task = currentDateTasks.find((t: any) => t.id === taskId);
       
       if (task && task.isRegular) {
         alert('Регулярные задачи можно удалить только во вкладке "Регулярные"');
@@ -861,9 +851,9 @@ export default function App() {
     } else if (category === 'regular') {
       setDailyTasks((prev: any) => prev.filter((task: any) => task.id !== taskId));
     }
-  }, [selectedDate, getCurrentDateTasks, setTasksByDate, setNoDeadlineTasks, setIdeas, setDailyTasks]);
+  };
 
-  const addTask = useCallback((category: string) => {
+  const addTask = (category: string) => {
     if (!newTaskText.trim()) return;
     
     const newTask: any = {
@@ -893,24 +883,25 @@ export default function App() {
     setNewTaskDate(new Date().toISOString().split('T')[0]);
     setNewTaskFrequency('daily');
     setNewTaskDays([]);
-  }, [newTaskText, newTaskDate, newTaskFrequency, newTaskDays, getAutoEmoji, setTasksByDate, setDailyTasks, setNoDeadlineTasks, setIdeas]);
+  };
 
-  const handleDragStart = useCallback((e: any, task: any, index: number, type: string) => {
+  // Drag and drop
+  const handleDragStart = (e: any, task: any, index: number, type: string) => {
     setDraggedItem({ task, index, type });
     e.dataTransfer.effectAllowed = 'move';
-  }, []);
+  };
 
-  const handleDragOver = useCallback((e: any, index: number, type: string) => {
+  const handleDragOver = (e: any, index: number, type: string) => {
     e.preventDefault();
     e.dataTransfer.dropEffect = 'move';
     setDragOverIndex({ index, type });
-  }, []);
+  };
 
-  const handleDragLeave = useCallback(() => {
+  const handleDragLeave = () => {
     setDragOverIndex(null);
-  }, []);
+  };
 
-  const handleDrop = useCallback((e: any, dropIndex: number, dropType: string) => {
+  const handleDrop = (e: any, dropIndex: number, dropType: string) => {
     e.preventDefault();
     setDragOverIndex(null);
     
@@ -953,19 +944,20 @@ export default function App() {
     }
 
     setDraggedItem(null);
-  }, [draggedItem, selectedDate, tasksByDate, noDeadlineTasks, ideas, dailyTasks, activeTab, getTodayRegularTasks, setRegularTasksOrder, setTasksByDate, setNoDeadlineTasks, setIdeas, setDailyTasks]);
+  };
 
-  const handleToggleTask = useCallback((category: string) => (taskId: number) => {
+  // Обработчики для передачи в компоненты
+  const handleToggleTask = (category: string) => (taskId: number) => {
     toggleTask(taskId, category);
-  }, [toggleTask]);
+  };
 
-  const handleDeleteTask = useCallback((category: string) => (taskId: number) => {
+  const handleDeleteTask = (category: string) => (taskId: number) => {
     deleteTask(taskId, category);
-  }, [deleteTask]);
+  };
 
-  const handleSelectDate = useCallback((dateStr: string) => {
+  const handleSelectDate = (dateStr: string) => {
     setSelectedDate(dateStr);
-  }, []);
+  };
 
   return (
     <div className="max-w-4xl mx-auto p-6 bg-gradient-to-br from-slate-50 to-blue-50 min-h-screen">
@@ -1129,7 +1121,7 @@ export default function App() {
                 />
               )}
               
-              {getCurrentDateTasks.some((t: any) => t.isRegular) && (
+              {currentDateTasks.some((t: any) => t.isRegular) && (
                 <div className="bg-blue-50 border border-blue-200 rounded-lg p-3 mb-4">
                   <p className="text-blue-800 text-sm">
                     🔄 Синие задачи — регулярные, подтянулись автоматически. Их можно перетаскивать между собой для изменения порядка. Настроить можно во вкладке "Регулярные".
@@ -1138,7 +1130,7 @@ export default function App() {
               )}
               
               <TaskList 
-                tasks={getCurrentDateTasks} 
+                tasks={currentDateTasks} 
                 category="today" 
                 onToggleTask={handleToggleTask('today')}
                 onDeleteTask={handleDeleteTask('today')}
