@@ -5,18 +5,19 @@ const supabaseAnonKey = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYm
 
 export const supabase = createClient(supabaseUrl, supabaseAnonKey)
 
-export const getUserId = (): string => {
+export const getUserId = () => {
   let userId = localStorage.getItem('userId')
   if (!userId) {
     userId = 'user_' + Math.random().toString(36).substr(2, 12)
     localStorage.setItem('userId', userId)
-    console.log('🔑 Создан новый ID пользователя:', userId)
+    console.log('🔑 User ID:', userId)
   }
   return userId
 }
 
-export const saveUserData = async (userData: any) => {
+export const saveUserData = async (userData) => {
   const userId = getUserId()
+  console.log('💾 Saving to Supabase...', userId)
   
   const { error } = await supabase
     .from('user_tasks')
@@ -26,14 +27,16 @@ export const saveUserData = async (userData: any) => {
     })
   
   if (error) {
-    console.error('Ошибка сохранения:', error)
+    console.error('❌ Save error:', error)
     return false
   }
+  console.log('✅ Saved!')
   return true
 }
 
 export const loadUserData = async () => {
   const userId = getUserId()
+  console.log('📥 Loading from Supabase...', userId)
   
   const { data, error } = await supabase
     .from('user_tasks')
@@ -42,9 +45,10 @@ export const loadUserData = async () => {
     .single()
   
   if (error) {
-    console.log('Данные не найдены:', error.message)
+    console.log('ℹ️ No data found:', error.message)
     return null
   }
   
+  console.log('✅ Loaded!')
   return data?.task_data || null
 }
