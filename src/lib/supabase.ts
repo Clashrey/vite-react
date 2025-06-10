@@ -5,7 +5,6 @@ const supabaseAnonKey = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYm
 
 export const supabase = createClient(supabaseUrl, supabaseAnonKey)
 
-// Простая авторизация - генерируем уникальный ID пользователя
 export const getUserId = (): string => {
   let userId = localStorage.getItem('userId')
   if (!userId) {
@@ -16,7 +15,6 @@ export const getUserId = (): string => {
   return userId
 }
 
-// Функции для работы с задачами
 export const saveUserData = async (userData: any) => {
   const userId = getUserId()
   
@@ -25,5 +23,28 @@ export const saveUserData = async (userData: any) => {
     .upsert({ 
       user_id: userId, 
       task_data: userData 
-    }, { 
-      onConflict: 'user_id'
+    })
+  
+  if (error) {
+    console.error('Ошибка сохранения:', error)
+    return false
+  }
+  return true
+}
+
+export const loadUserData = async () => {
+  const userId = getUserId()
+  
+  const { data, error } = await supabase
+    .from('user_tasks')
+    .select('task_data')
+    .eq('user_id', userId)
+    .single()
+  
+  if (error) {
+    console.log('Данные не найдены:', error.message)
+    return null
+  }
+  
+  return data?.task_data || null
+}
